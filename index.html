@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Симулятор жизни</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app" aria-label="Симулятор жизни">
+      <header class="topbar">
+        <div>
+          <h1>Симулятор жизни</h1>
+          <p id="subtitle">0 лет.</p>
+        </div>
+        <div class="top-actions">
+          <button id="saveButton" type="button">Сохранить</button>
+          <button id="loadButton" type="button">Загрузить</button>
+          <button id="resetButton" type="button">Новая игра</button>
+        </div>
+      </header>
+
+      <section id="stats" class="stats" aria-label="Показатели"></section>
+
+      <section class="layout">
+        <nav id="tabs" class="tabs" aria-label="Разделы игры"></nav>
+        <section class="board" aria-live="polite">
+          <div id="notice" class="notice"></div>
+          <div id="content" class="content"></div>
+        </section>
+      </section>
+
+      <footer class="footer">
+        <button id="endDayButton" class="end-day" type="button">Прожить год</button>
+      </footer>
+    </main>
+
+    <script src="./game.js"></script>
+  </body>
+</html>
