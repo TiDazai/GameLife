@@ -55,6 +55,7 @@ global.localStorage = {
   "engine/workplaceEngine.js",
   "engine/nightlifeEngine.js",
   "engine/adultWorkEngine.js",
+  "engine/pregnancyEngine.js",
   "state.js",
   "engine/relationshipEngine.js",
   "engine/relationshipActions.js",
