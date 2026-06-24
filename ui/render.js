@@ -72,6 +72,7 @@ const els = {
   notice: document.getElementById("notice"),
   content: document.getElementById("content"),
   endYear: document.getElementById("endDayButton"),
+  yearPreview: document.getElementById("yearPreview"),
   save: document.getElementById("saveButton"),
   load: document.getElementById("loadButton"),
   reset: document.getElementById("resetButton"),
@@ -79,34 +80,33 @@ const els = {
   bottomNav: document.getElementById("bottomNav"),
 };
 
-const tabs = [
-  ["life", "Жизнь"],
-  ["activities", "Активности"],
-  ["family", "Семья"],
-  ["world", "Мир"],
-  ["education", "Учеба"],
-  ["career", "Карьера"],
-  ["health", "Здоровье"],
-  ["skills", "Навыки"],
-  ["money", "Деньги"],
-  ["home", "Дом"],
-  ["assets", "Активы"],
-  ["business", "Компания"],
-  ["relationships", "Отношения"],
-  ["docs", "Документы"],
-  ["report", "Сводка"],
-  ["achievements", "Достижения"],
+// Grouped navigation: 8 main groups, each owning one or more views (sub-tabs).
+// This keeps the chrome calm instead of showing all 16 views at once.
+const navGroups = [
+  { id: "life", label: "Жизнь", views: [["life", "Обзор"], ["skills", "Навыки"], ["education", "Учёба"]] },
+  { id: "actions", label: "Действия", views: [["activities", "Действия"]] },
+  { id: "people", label: "Люди", views: [["relationships", "Отношения"], ["family", "Семья"]] },
+  { id: "career", label: "Карьера", views: [["career", "Карьера"], ["business", "Компания"]] },
+  { id: "money", label: "Деньги", views: [["money", "Финансы"], ["home", "Дом"], ["assets", "Активы"]] },
+  { id: "health", label: "Здоровье", views: [["health", "Здоровье"]] },
+  { id: "world", label: "Мир", views: [["world", "Мир"], ["docs", "Документы"]] },
+  { id: "summary", label: "Итоги", views: [["report", "Сводка"], ["achievements", "Достижения"]] },
 ];
 
-const bottomTabs = [
-  ["life", "Жизнь"],
-  ["activities", "Действия"],
-  ["relationships", "Отношения"],
-  ["career", "Карьера"],
-  ["money", "Деньги"],
-  ["health", "Здоровье"],
-  ["report", "Сводка"],
-];
+// How many groups stay on the mobile bottom bar before the rest collapse to "Ещё".
+const NAV_PRIMARY_COUNT = 5;
+let navMoreOpen = false;
+
+function groupForView(viewId) {
+  return navGroups.find((group) => group.views.some(([id]) => id === viewId)) || navGroups[0];
+}
+
+function selectNavGroup(group) {
+  // Keep the current sub-view if it already belongs to the group, else open the first.
+  if (!group.views.some(([id]) => id === state.tab)) state.tab = group.views[0][0];
+  navMoreOpen = false;
+  render();
+}
 
 const themeKey = "gamelife-ui-theme";
 
@@ -201,12 +201,16 @@ function selectInput(id, entries) {
   return select;
 }
 
+// Stepped character creator. Steps: 1) кто, 2) где, 3) семья, 4) характер,
+// 5) цель + предпросмотр. Step navigation swaps panels in place (no full app
+// re-render) so inputs keep their values. "Быстрый старт" randomizes the form
+// with a live preview; "Случайная жизнь" jumps straight into a random life.
+let creatorStep = 0;
+
 function renderCreator() {
   const root = document.createDocumentFragment();
-  const intro = section("Создание персонажа", "");
-  const profileGrid = document.createElement("div");
-  profileGrid.className = "creator-grid";
 
+  // ---- shared inputs (kept alive across steps; collectCreatorOptions reads ids)
   const firstName = textInput("creatorFirstName", "Например: Анна");
   const lastName = textInput("creatorLastName", "Например: Соколова");
   const gender = selectInput("creatorGender", Object.entries(characterCreation.genders));
@@ -240,6 +244,16 @@ function renderCreator() {
     );
   };
 
+  // Placeholder names follow the selected country's cultural pool so the form
+  // hints at locally plausible names (Россия: Анна Соколова; США: Emily Carter…).
+  const updateNamePlaceholders = () => {
+    const sample = window.GameNames?.placeholderFor?.(country.value) || "Анна Соколова";
+    const parts = sample.split(/\s+/);
+    firstName.placeholder = `Например: ${parts[0] || "Анна"}`;
+    lastName.placeholder = `Например: ${parts.slice(1).join(" ") || "Соколова"}`;
+  };
+
+  let updatePreview = () => {};
   region.addEventListener("change", () => {
     country.replaceChildren(
       ...countryEntriesFor(region.value).map(([id, name]) => {
@@ -250,30 +264,26 @@ function renderCreator() {
       })
     );
     fillCities();
+    updateNamePlaceholders();
+    updatePreview();
   });
-  country.addEventListener("change", fillCities);
+  // Country change auto-updates the city list and the name placeholder.
+  country.addEventListener("change", () => {
+    fillCities();
+    updateNamePlaceholders();
+    updatePreview();
+  });
+  [firstName, lastName, gender, city].forEach((el) => el.addEventListener("change", () => updatePreview()));
+  updateNamePlaceholders();
 
-  profileGrid.append(
-    field("Имя", firstName),
-    field("Фамилия", lastName),
-    field("Пол", gender),
-    field("Регион", region),
-    field("Страна", country),
-    field("Город", city)
-  );
-  intro.append(profileGrid);
-  root.append(intro);
-
-  const goalSection = section("Цель жизни", "Выберите главную мечту персонажа — она задаёт вехи и влияет на итоговую оценку.");
+  // ---- goal + social class + traits inputs
   const goalCatalog = window.GameLifeGoals?.catalog?.() || [];
   const goalEntries = [["random", "Случайная цель"], ...goalCatalog.map((g) => [g.id, g.title])];
   const goal = selectInput("creatorGoal", goalEntries);
-  goalSection.append(field("Цель", goal));
-  root.append(goalSection);
+  goal.addEventListener("change", () => updatePreview());
 
-  const origin = section("Семья и среда", "");
   const classGrid = document.createElement("div");
-  classGrid.className = "grid";
+  classGrid.className = "grid choice-grid";
   Object.entries(socialClasses).forEach(([id, item]) => {
     const label = document.createElement("label");
     label.className = "choice-card";
@@ -282,6 +292,7 @@ function renderCreator() {
     radio.name = "creatorSocialClass";
     radio.value = id;
     radio.checked = id === characterCreation.defaultSocialClass;
+    radio.addEventListener("change", () => updatePreview());
     const title = document.createElement("strong");
     title.textContent = item.name;
     const text = document.createElement("span");
@@ -291,10 +302,7 @@ function renderCreator() {
     label.append(radio, title, text, meta);
     classGrid.append(label);
   });
-  origin.append(classGrid);
-  root.append(origin);
 
-  const traits = section("Черты характера", "");
   const traitGrid = document.createElement("div");
   traitGrid.className = "creator-grid";
   Object.entries(characterCreation.traitRanges).forEach(([id, config]) => {
@@ -316,22 +324,164 @@ function renderCreator() {
     wrap.append(top, input, value);
     traitGrid.append(wrap);
   });
-  traits.append(traitGrid);
-  root.append(traits);
 
-  const actions = section("Старт", "");
-  const buttons = document.createElement("div");
-  buttons.className = "button-grid";
-  buttons.append(
-    button("Начать жизнь", () => {
-      window.GameStorage.startGame(collectCreatorOptions());
-    }, { className: "primary" }),
-    button("Случайная жизнь", () => {
-      window.GameStorage.startRandomGame();
-    }, { className: "money" })
+  // ---- step panels --------------------------------------------------------
+  const steps = [
+    { title: "Кто вы", hint: "Имя, фамилия и пол персонажа.", build: () => {
+      const grid = document.createElement("div");
+      grid.className = "creator-grid";
+      grid.append(field("Имя", firstName), field("Фамилия", lastName), field("Пол", gender));
+      return grid;
+    } },
+    { title: "Где вы родились", hint: "Регион и страна задают культуру, имена и стартовый город.", build: () => {
+      const grid = document.createElement("div");
+      grid.className = "creator-grid";
+      grid.append(field("Регион", region), field("Страна", country), field("Город", city));
+      return grid;
+    } },
+    { title: "Семья и среда", hint: "Социальный класс определяет бюджет, район и доступ к образованию.", build: () => classGrid },
+    { title: "Характер", hint: "Базовые черты влияют на то, как складывается жизнь.", build: () => traitGrid },
+    { title: "Цель жизни", hint: "Главная мечта задаёт вехи и влияет на итоговую оценку.", build: () => {
+      const wrap = document.createElement("div");
+      wrap.append(field("Цель", goal));
+      return wrap;
+    } },
+  ];
+
+  // ---- preview card (live summary of current choices)
+  const preview = document.createElement("div");
+  preview.className = "creator-preview";
+  updatePreview = () => {
+    const cName = countries[country.value]?.name || country.value;
+    const cityNm = countries[country.value]?.cities?.[city.value]?.name || "";
+    const clsEl = classGrid.querySelector('input[name="creatorSocialClass"]:checked');
+    const clsName = clsEl ? socialClasses[clsEl.value]?.name : "";
+    const goalName = goal.value === "random" ? "Случайная цель" : (goalCatalog.find((g) => g.id === goal.value)?.title || "—");
+    const fn = firstName.value || firstName.placeholder.replace("Например: ", "");
+    const ln = lastName.value || lastName.placeholder.replace("Например: ", "");
+    const genderName = characterCreation.genders[gender.value] || gender.value;
+    preview.replaceChildren();
+    const pairs = [
+      ["Имя", `${fn} ${ln}`.trim()],
+      ["Пол", genderName],
+      ["Родина", `${cityNm ? cityNm + ", " : ""}${cName}`],
+      ["Среда", clsName],
+      ["Цель", goalName],
+    ];
+    pairs.forEach(([label, val]) => {
+      const row = document.createElement("div");
+      row.className = "creator-preview-row";
+      const l = document.createElement("span");
+      l.textContent = label;
+      const v = document.createElement("strong");
+      v.textContent = val;
+      row.append(l, v);
+      preview.append(row);
+    });
+  };
+
+  // ---- randomize ("Быстрый старт") fills the form + preview, stays in creator
+  const randomize = () => {
+    const entries = countryEntriesFor("all");
+    const [cid] = entries[Math.floor(Math.random() * entries.length)];
+    region.value = "all";
+    country.replaceChildren(
+      ...entries.map(([id, name]) => {
+        const o = document.createElement("option");
+        o.value = id;
+        o.textContent = name;
+        return o;
+      })
+    );
+    country.value = cid;
+    fillCities();
+    const cityIds = Object.keys(countries[cid].cities);
+    city.value = cityIds[Math.floor(Math.random() * cityIds.length)];
+    gender.value = Math.random() > 0.5 ? "female" : "male";
+    firstName.value = window.GameNames?.firstName?.(cid, gender.value) || "";
+    lastName.value = window.GameNames?.lastName?.(cid) || "";
+    updateNamePlaceholders();
+    const classIds = Object.keys(socialClasses);
+    const pickedClass = classIds[Math.floor(Math.random() * classIds.length)];
+    classGrid.querySelectorAll('input[name="creatorSocialClass"]').forEach((r) => { r.checked = r.value === pickedClass; });
+    traitGrid.querySelectorAll('input[type="range"]').forEach((r) => {
+      r.value = String(Number(r.min) + Math.floor(Math.random() * (Number(r.max) - Number(r.min) + 1)));
+      r.dispatchEvent(new Event("input"));
+    });
+    if (goalCatalog.length) goal.value = goalCatalog[Math.floor(Math.random() * goalCatalog.length)].id;
+    updatePreview();
+  };
+
+  // ---- wizard shell -------------------------------------------------------
+  const shell = section("Создание персонажа", "Пять коротких шагов — или быстрый старт со случайной судьбой.");
+
+  const stepper = document.createElement("div");
+  stepper.className = "creator-stepper";
+
+  const panel = document.createElement("div");
+  panel.className = "creator-panel";
+
+  const nav = document.createElement("div");
+  nav.className = "creator-nav";
+
+  if (creatorStep >= steps.length) creatorStep = steps.length - 1;
+  if (creatorStep < 0) creatorStep = 0;
+
+  // Build every step panel ONCE and keep them all mounted (hidden when inactive)
+  // so that all inputs stay in the DOM — collectCreatorOptions reads them by id.
+  const panels = steps.map((cur) => {
+    const wrap = document.createElement("div");
+    wrap.className = "creator-step-panel";
+    const h = document.createElement("h3");
+    h.className = "creator-step-title";
+    h.textContent = cur.title;
+    const p = document.createElement("p");
+    p.className = "mini";
+    p.textContent = cur.hint;
+    wrap.append(h, p, cur.build());
+    return wrap;
+  });
+  panel.replaceChildren(...panels);
+
+  const showStep = (index) => {
+    creatorStep = Math.max(0, Math.min(steps.length - 1, index));
+    // stepper dots
+    stepper.replaceChildren();
+    steps.forEach((s, i) => {
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = `creator-step${i === creatorStep ? " active" : ""}${i < creatorStep ? " done" : ""}`;
+      dot.textContent = `${i + 1}. ${s.title}`;
+      dot.addEventListener("click", () => showStep(i));
+      stepper.append(dot);
+    });
+    // toggle panel visibility (keep all mounted)
+    panels.forEach((el, i) => { el.hidden = i !== creatorStep; });
+    // nav buttons
+    nav.replaceChildren();
+    if (creatorStep > 0) nav.append(button("Назад", () => showStep(creatorStep - 1)));
+    if (creatorStep < steps.length - 1) {
+      nav.append(button("Далее", () => showStep(creatorStep + 1), { className: "primary" }));
+    } else {
+      nav.append(button("Начать жизнь", () => window.GameStorage.startGame(collectCreatorOptions()), { className: "primary" }));
+    }
+  };
+
+  const quick = document.createElement("div");
+  quick.className = "creator-quick";
+  quick.append(
+    button("Быстрый старт", () => randomize(), { className: "money" }),
+    button("Случайная жизнь", () => window.GameStorage.startRandomGame())
   );
-  actions.append(buttons);
-  root.append(actions);
+
+  shell.append(quick, stepper, panel, nav);
+
+  const previewSection = section("Предпросмотр", "");
+  previewSection.append(preview);
+
+  root.append(shell, previewSection);
+  showStep(creatorStep);
+  updatePreview();
   return root;
 }
 
@@ -370,19 +520,35 @@ function renderActionGrid(actions) {
   return grid;
 }
 
+// The compact status dock always shows; the rest live behind "Все показатели".
+function statTile(label, value, priority = false) {
+  const node = document.createElement("article");
+  node.className = `stat${priority ? " priority" : ""}`;
+  applyVisualState(node, `${label} ${value}`);
+  node.innerHTML = `<div class="stat-label"></div><div class="stat-value"></div>`;
+  node.querySelector(".stat-label").textContent = label;
+  node.querySelector(".stat-value").textContent = value;
+  return node;
+}
+
+let statsExpanded = false;
+
 function renderStats() {
-  const allStats = [
+  const dockStats = [
     ["Возраст", ageText(state.age)],
-    ["Этап", stageName()],
-    ["Усталость", `${state.actionFatigue || 0}%`],
-    ["Действий за год", state.yearlyActionCount || 0],
     ["Личные деньги", fmt(state.personalMoney)],
+    ["Здоровье", `${state.health}%`],
+    ["Счастье", `${state.happiness}%`],
+    ["Стресс", `${state.stress}%`],
+    ["Усталость", `${state.actionFatigue || 0}%`],
+  ];
+  const moreStats = [
+    ["Этап", stageName()],
+    ["Действий за год", state.yearlyActionCount || 0],
     ["Бюджет семьи", fmt(state.familyMoney)],
     ["Долг", fmt(state.debt)],
-    ["Здоровье", `${state.health}%`],
     ["Психика", `${state.mental}%`],
     ["Энергия", `${state.energy}%`],
-    ["Счастье", `${state.happiness}%`],
     ["Внешность", `${state.looks}%`],
     ["Известность", `${state.fame}%`],
     ["Знания", state.knowledge],
@@ -392,7 +558,6 @@ function renderStats() {
     ["Кредит", state.creditScore],
     ["Карма", state.karma],
     ["Судимость", state.criminalRecord],
-    ["Стресс", `${state.stress}%`],
     ["Город", cityName()],
     ["Семья", socialClassData().name],
     ["Район", `${state.districtQuality}/100`],
@@ -401,43 +566,95 @@ function renderStats() {
     ["Капитал", fmt(netWorth())],
     ["Налоговый долг", fmt(state.taxDebt)],
   ];
-  const mobilePriority = new Set(["Возраст", "Усталость", "Личные деньги", "Долг", "Здоровье", "Психика", "Счастье", "Стресс", "Капитал"]);
-  const stats = allStats.map((item) => [...item, mobilePriority.has(item[0])]);
-  els.stats.replaceChildren(
-    ...stats.map(([label, value, priority]) => {
-      const node = document.createElement("article");
-      node.className = `stat${priority ? " priority" : ""}`;
-      applyVisualState(node, `${label} ${value}`);
-      node.innerHTML = `<div class="stat-label"></div><div class="stat-value"></div>`;
-      node.querySelector(".stat-label").textContent = label;
-      node.querySelector(".stat-value").textContent = value;
-      return node;
+
+  const dock = document.createElement("div");
+  dock.className = "status-dock";
+  dockStats.forEach(([label, value]) => dock.append(statTile(label, value, true)));
+
+  const toggle = button(statsExpanded ? "Скрыть показатели" : "Все показатели", () => {
+    statsExpanded = !statsExpanded;
+    render();
+  });
+  toggle.className = "stats-toggle";
+  toggle.setAttribute("aria-expanded", String(statsExpanded));
+
+  const children = [dock, toggle];
+  if (statsExpanded) {
+    const all = document.createElement("div");
+    all.className = "stats-all";
+    moreStats.forEach(([label, value]) => all.append(statTile(label, value)));
+    children.push(all);
+  }
+  els.stats.replaceChildren(...children);
+}
+
+function renderNavMoreSheet(overflow, activeGroup) {
+  let sheet = document.getElementById("navMoreSheet");
+  if (!navMoreOpen) {
+    if (sheet) sheet.remove();
+    return;
+  }
+  if (!sheet) {
+    sheet = document.createElement("div");
+    sheet.id = "navMoreSheet";
+    sheet.className = "nav-more-sheet";
+    document.body.append(sheet);
+  }
+  sheet.replaceChildren(
+    ...overflow.map((group) => {
+      const btn = button(group.label, () => selectNavGroup(group));
+      btn.className = `nav-more-item${group.id === activeGroup.id ? " active" : ""}`;
+      return btn;
     })
   );
 }
 
 function renderTabs() {
-  els.tabs.replaceChildren(
-    ...tabs.map(([id, label]) => {
+  const activeGroup = groupForView(state.tab);
+
+  // Desktop top nav: a row of main groups + a sub-tab row for the active group.
+  const groupRow = document.createElement("div");
+  groupRow.className = "tab-groups";
+  navGroups.forEach((group) => {
+    const btn = button(group.label, () => selectNavGroup(group));
+    btn.className = `tab${group.id === activeGroup.id ? " active" : ""}`;
+    groupRow.append(btn);
+  });
+  const topChildren = [groupRow];
+  if (activeGroup.views.length > 1) {
+    const subRow = document.createElement("div");
+    subRow.className = "subtabs";
+    activeGroup.views.forEach(([id, label]) => {
       const btn = button(label, () => {
         state.tab = id;
         render();
       });
-      const bottom = bottomTabs.some(([bottomId]) => bottomId === id);
-      btn.className = `tab${state.tab === id ? " active" : ""}${bottom ? " mobile-primary" : " secondary-tab"}`;
-      return btn;
-    })
-  );
-  els.bottomNav.replaceChildren(
-    ...bottomTabs.map(([id, label]) => {
-      const btn = button(label, () => {
-        state.tab = id;
-        render();
-      });
-      btn.className = `bottom-tab${state.tab === id ? " active" : ""}`;
-      return btn;
-    })
-  );
+      btn.className = `subtab${state.tab === id ? " active" : ""}`;
+      subRow.append(btn);
+    });
+    topChildren.push(subRow);
+  }
+  els.tabs.replaceChildren(...topChildren);
+
+  // Mobile bottom nav: first few groups + an "Ещё" overflow button.
+  const bottomTabs = navGroups.slice(0, NAV_PRIMARY_COUNT);
+  const overflow = navGroups.slice(NAV_PRIMARY_COUNT);
+  const overflowActive = overflow.some((group) => group.id === activeGroup.id);
+  const bottomChildren = bottomTabs.map((group) => {
+    const btn = button(group.label, () => selectNavGroup(group));
+    btn.className = `bottom-tab${group.id === activeGroup.id ? " active" : ""}`;
+    return btn;
+  });
+  if (overflow.length) {
+    const moreBtn = button("Ещё", () => {
+      navMoreOpen = !navMoreOpen;
+      render();
+    });
+    moreBtn.className = `bottom-tab${overflowActive || navMoreOpen ? " active" : ""}`;
+    bottomChildren.push(moreBtn);
+  }
+  els.bottomNav.replaceChildren(...bottomChildren);
+  renderNavMoreSheet(overflow, activeGroup);
 }
 
 function currentTheme() {
@@ -776,7 +993,10 @@ function renderLifeDashboard() {
 function renderLife() {
   const root = document.createDocumentFragment();
   root.append(renderLifeHero());
-  root.append(renderLifeDashboard());
+  const alertsNode = renderLifeAlerts();
+  if (alertsNode) root.append(alertsNode);
+  const recNode = renderRecommendedActions(4);
+  if (recNode) root.append(recNode);
   const cc = characterCreation || {};
   const talentNames = (state.talents || []).map((id) => (cc.talents || []).find((t) => t.id === id)?.name).filter(Boolean);
   const weaknessNames = (state.weaknesses || []).map((id) => (cc.weaknesses || []).find((w) => w.id === id)?.name).filter(Boolean);
@@ -833,10 +1053,6 @@ function renderLife() {
   if (worldNode) root.append(worldNode);
   const arcsNode = renderStoryArcs();
   if (arcsNode) root.append(arcsNode);
-
-  const actions = section("Решения года", "Никаких полей ввода: каждое действие выбирается кнопкой.");
-  actions.append(renderActionGrid(getActions()));
-  root.append(actions);
   return root;
 }
 
@@ -890,6 +1106,189 @@ function renderFatigueBar() {
   return node;
 }
 
+// Shared builder for a single data-driven action card (used by the Action Center
+// catalog and the "Рекомендуем сейчас" block) so behavior stays consistent.
+function buildActionCard(action, options = {}) {
+  const engine = window.GameActionEngine;
+  const canDo = engine.canPerform(state, action);
+  const adapt = window.GameActionLoad?.adaptActionForAge?.(state, action) || {};
+  const moneyMeta = action.cost?.money ? `${fmt(action.cost.money)} · ` : "";
+  let reason = "";
+  if (!canDo) {
+    if (action.cost?.money && (state.personalMoney || 0) < action.cost.money) reason = `Нужно ${fmt(action.cost.money)}.`;
+    else reason = adapt.reason || "Сейчас недоступно.";
+  } else if (adapt.adapted) {
+    reason = adapt.reason || "";
+  }
+  const node = card(action.title, "", `${moneyMeta}${action.description || ""}`, button(canDo ? "Сделать" : "Недоступно", () => {
+    engine.performAction(state, action.id);
+    render();
+  }, { disabled: !canDo, className: canDo ? "primary" : "" }));
+  node.classList.add("action-card");
+  if (options.compact) node.classList.add("action-card--compact");
+  if (options.why) {
+    const why = document.createElement("div");
+    why.className = "reco-why";
+    why.textContent = options.why;
+    // Place the reason right under the title for quick scanning.
+    node.insertBefore(why, node.children[1] || null);
+  }
+  const badges = actionBadges(action);
+  if (adapt.adapted) badges.unshift(["детская версия", "important"]);
+  if (badges.length) node.append(badgeRow(badges));
+  if (reason) {
+    const r = document.createElement("div");
+    r.className = "mini";
+    r.textContent = reason;
+    node.append(r);
+  }
+  return node;
+}
+
+// Context-aware suggestions: returns up to 6 { action, why } pairs that make
+// sense for the current state, drawing from the same action catalog/engine.
+function getRecommendedActions(state) {
+  const engine = window.GameActionEngine;
+  if (!engine?.getAvailableActions) return [];
+  const available = engine.getAvailableActions(state).filter((a) => engine.canPerform(state, a));
+  const recs = [];
+  const used = new Set();
+  const find = (pred) => available.find((a) => !used.has(a.id) && pred(a));
+  const add = (action, why) => {
+    if (!action || used.has(action.id) || recs.length >= 6) return;
+    used.add(action.id);
+    recs.push({ action, why });
+  };
+
+  if ((state.stress || 0) >= 65) {
+    add(find((a) => a.category === "health" || a.category === "lifestyle"), `потому что стресс ${state.stress}%`);
+  }
+  if ((state.health ?? 100) <= 45) {
+    add(find((a) => a.category === "health"), `потому что здоровье ${state.health}%`);
+  }
+  if ((state.actionFatigue || 0) >= 60) {
+    add(find((a) => a.category === "health" || a.category === "lifestyle"), `потому что усталость года ${state.actionFatigue}%`);
+  }
+  const hasJob = Boolean(state.career?.jobId);
+  if (state.age >= 16 && (state.personalMoney || 0) < 300) {
+    add(find((a) => a.category === "career" || a.category === "money"), hasJob ? "потому что мало денег" : "потому что нет дохода");
+  }
+  const livingNpcs = (state.npcs || []).filter((n) => n.alive);
+  const friends = livingNpcs.filter((n) => ["friend", "best_friend"].includes(n.relationType)).length;
+  const hasPartner = livingNpcs.some((n) => ["partner", "spouse"].includes(n.relationType));
+  if (friends === 0) {
+    add(find((a) => a.category === "social"), "потому что мало общения");
+  } else if (!hasPartner && state.age >= 16) {
+    add(find((a) => a.category === "social"), "потому что стоит укрепить отношения");
+  }
+  const goal = window.GameLifeGoals?.describe?.(state);
+  if (goal && !goal.completed && /карьер|финанс|бизнес|капитал|богат|professional|wealth|career|money/i.test(`${goal.id} ${goal.title}`)) {
+    add(find((a) => a.category === "career" || a.category === "money"), `потому что цель: ${String(goal.title).toLowerCase()}`);
+  }
+  const arc = (window.GameStoryArcs?.describe?.(state) || []).find((a) => a.status === "active");
+  if (arc) {
+    add(find((a) => a.category === "risk" || a.category === "social" || a.category === "creative"), `потому что активная история: ${String(arc.title).toLowerCase()}`);
+  }
+  // Top up with generally useful growth actions if we have too few.
+  if (recs.length < 3) {
+    add(find((a) => a.category === "education"), "потому что развитие пригодится");
+    add(find((a) => a.category === "career"), "потому что полезно для будущего");
+    add(find(() => true), "потому что можно прокачаться");
+  }
+  return recs.slice(0, 6);
+}
+
+function renderRecommendedActions(limit = 6) {
+  const recs = getRecommendedActions(state).slice(0, limit);
+  if (!recs.length) return null;
+  const node = section("Рекомендуем сейчас", "Подобрано по вашему состоянию — почему именно это, написано на карточке.");
+  const grid = document.createElement("div");
+  grid.className = "grid reco-grid";
+  recs.forEach(({ action, why }) => grid.append(buildActionCard(action, { why, compact: true })));
+  node.append(grid);
+  return node;
+}
+
+// "Что важно сейчас" — short, prioritized warnings/goals for the Life screen.
+function getLifeAlerts(state) {
+  const alerts = [];
+  if ((state.health ?? 100) <= 45) alerts.push({ text: `Низкое здоровье — ${state.health}%`, kind: "danger" });
+  if (state.age >= 18 && !state.career?.jobId && (state.personalMoney || 0) < 600) alerts.push({ text: "Нет постоянного дохода", kind: "risk" });
+  if ((state.actionFatigue || 0) >= 70) alerts.push({ text: `Высокая усталость года — ${state.actionFatigue}%`, kind: "risk" });
+  if ((state.stress || 0) >= 70) alerts.push({ text: `Сильный стресс — ${state.stress}%`, kind: "risk" });
+  if ((state.debt || 0) > 0 || (state.taxDebt || 0) > 0) {
+    const total = (state.debt || 0) + (state.taxDebt || 0);
+    alerts.push({ text: `Долговая нагрузка — ${fmt(total)}`, kind: "danger" });
+  }
+  const livingNpcs = (state.npcs || []).filter((n) => n.alive);
+  const closeNeglected = livingNpcs.find((n) => ["partner", "spouse", "best_friend", "parent"].includes(n.relationType) && (n.bond ?? 100) < 35);
+  if (closeNeglected) alerts.push({ text: "Отношения требуют внимания", kind: "risk" });
+  const arc = (window.GameStoryArcs?.describe?.(state) || []).find((a) => a.status === "active");
+  if (arc) alerts.push({ text: `Активная история: ${arc.title}`, kind: "important" });
+  const goal = window.GameLifeGoals?.describe?.(state);
+  if (goal && !goal.completed) alerts.push({ text: `Цель: ${goal.title} — ${goal.progress}%`, kind: "" });
+  return alerts.slice(0, 5);
+}
+
+function renderLifeAlerts() {
+  const alerts = getLifeAlerts(state);
+  if (!alerts.length) return null;
+  const node = section("Что важно сейчас", "");
+  const list = document.createElement("div");
+  list.className = "alert-list";
+  alerts.forEach(({ text, kind }) => {
+    const item = document.createElement("div");
+    item.className = `alert-item${kind ? ` is-${kind}` : ""}`;
+    item.textContent = text;
+    list.append(item);
+  });
+  node.append(list);
+  return node;
+}
+
+// Compact "what this year looks like" strip rendered next to the sticky
+// "Прожить год" button: how active the year was, fatigue, money, risks/events.
+function renderYearPreview() {
+  const host = els.yearPreview;
+  if (!host) return;
+  host.replaceChildren();
+  if (getAppMode() !== "life") {
+    host.classList.remove("has-content");
+    return;
+  }
+  host.classList.add("has-content");
+
+  const pills = [];
+  const done = state.yearlyActionCount || 0;
+  pills.push({ label: "Действий за год", value: String(done), kind: "" });
+
+  const fat = window.GameActionLoad?.fatigueLabel?.(state) || { text: "", kind: "" };
+  pills.push({ label: "Усталость", value: `${state.actionFatigue || 0}% · ${fat.text}`, kind: fat.kind });
+
+  const money = netWorth();
+  pills.push({ label: "Капитал", value: fmt(money), kind: money < 0 ? "danger" : "" });
+
+  const risks = getLifeAlerts(state).filter((a) => a.kind === "risk" || a.kind === "danger");
+  if (risks.length) pills.push({ label: "Риски", value: String(risks.length), kind: "danger" });
+
+  if (state.event) {
+    pills.push({ label: "Событие", value: state.event.title || "ждёт выбора", kind: "important" });
+  }
+
+  pills.forEach(({ label, value, kind }) => {
+    const pill = document.createElement("div");
+    pill.className = `year-pill${kind ? ` is-${kind}` : ""}`;
+    const l = document.createElement("span");
+    l.className = "year-pill-label";
+    l.textContent = label;
+    const v = document.createElement("strong");
+    v.className = "year-pill-value";
+    v.textContent = value;
+    pill.append(l, v);
+    host.append(pill);
+  });
+}
+
 let actionSearchQuery = "";
 let actionShowAll = false;
 const ACTION_PAGE = 24;
@@ -907,18 +1306,27 @@ function renderDataActions() {
 
   const chipEntries = [["all", `${ACTION_CATEGORY_LABELS.all} (${cats.reduce((s, c) => s + c.count, 0)})`]];
   cats.forEach((c) => chipEntries.push([c.id, `${ACTION_CATEGORY_LABELS[c.id] || c.id} (${c.count})`]));
-  node.append(filterChips(chipEntries, actionCategoryFilter, (id) => {
-    actionCategoryFilter = id;
-    actionShowAll = false;
-    render();
-  }));
+
+  // Filters and search update only the list (no full render, so no scroll jump).
+  const chipHost = document.createElement("div");
+  const renderChips = () => {
+    chipHost.replaceChildren(
+      filterChips(chipEntries, actionCategoryFilter, (id) => {
+        actionCategoryFilter = id;
+        actionShowAll = false;
+        renderChips();
+        buildGrid();
+      })
+    );
+  };
+  node.append(chipHost);
 
   const search = textInput("actionSearch", "Поиск действия по названию");
   search.value = actionSearchQuery;
   node.append(field("Поиск", search));
 
   const grid = document.createElement("div");
-  grid.className = "grid";
+  grid.className = "grid action-grid";
   const footer = document.createElement("div");
 
   const buildGrid = () => {
@@ -934,32 +1342,7 @@ function renderDataActions() {
       return;
     }
     const limit = actionShowAll ? list.length : ACTION_PAGE;
-    list.slice(0, limit).forEach((action) => {
-      const canDo = engine.canPerform(state, action);
-      const adapt = window.GameActionLoad?.adaptActionForAge?.(state, action) || {};
-      const moneyMeta = action.cost?.money ? `${fmt(action.cost.money)} · ` : "";
-      let reason = "";
-      if (!canDo) {
-        if (action.cost?.money && (state.personalMoney || 0) < action.cost.money) reason = `Нужно ${fmt(action.cost.money)}.`;
-        else reason = adapt.reason || "Сейчас недоступно.";
-      } else if (adapt.adapted) {
-        reason = adapt.reason || "";
-      }
-      const node2 = card(action.title, "", `${moneyMeta}${action.description || ""}`, button(canDo ? "Сделать" : "Недоступно", () => {
-        window.GameActionEngine.performAction(state, action.id);
-        render();
-      }, { disabled: !canDo, className: canDo ? "primary" : "" }));
-      const badges = actionBadges(action);
-      if (adapt.adapted) badges.unshift(["детская версия", "important"]);
-      if (badges.length) node2.append(badgeRow(badges));
-      if (reason) {
-        const r = document.createElement("div");
-        r.className = "mini";
-        r.textContent = reason;
-        node2.append(r);
-      }
-      grid.append(node2);
-    });
+    list.slice(0, limit).forEach((action) => grid.append(buildActionCard(action, { compact: true })));
     if (!actionShowAll && list.length > ACTION_PAGE) {
       footer.append(button(`Показать ещё (${list.length - ACTION_PAGE})`, () => {
         actionShowAll = true;
@@ -973,6 +1356,7 @@ function renderDataActions() {
     actionShowAll = false;
     buildGrid();
   });
+  renderChips();
   buildGrid();
   node.append(grid, footer);
   return node;
@@ -1031,56 +1415,13 @@ function renderStoryArcs() {
 }
 
 function renderActivities() {
+  // Single, data-driven action surface: recommendations first, then the full
+  // searchable catalog. No parallel "manual activities" grid anymore.
   const root = document.createDocumentFragment();
-  root.append(renderFatigueBar());
+  const rec = renderRecommendedActions(6);
+  if (rec) root.append(rec);
   root.append(renderDataActions());
-  const s = section("Активности", "");
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  const vacationCost = Math.floor(900 * cityData().cost);
-  const styleCost = Math.floor(380 * cityData().cost);
-  const lawyerCost = Math.floor((900 + Math.max(state.criminalRecord, state.activeCases?.[0]?.severity || 0) * 450) * cityData().cost);
-  grid.append(
-    activityCard("Игрушки", "Счастье +4, моторика", "toys", !canAct() || state.age >= 3),
-    activityCard("Объятия", "Связь с семьей +3", "hug", !canAct() || state.age >= 7),
-    activityCard("Прогулка", "Здоровье +2, счастье +3", "walk", !canAct() || state.age < 3),
-    activityCard("Книга", "Знания +5, стресс -1", "book", !canAct() || state.age < 5),
-    activityCard("Спортзал", "Здоровье +5, внешность +2", "gym", !canAct() || state.age < 12),
-    activityCard("Медитация", "Психика +7, карма +2", "meditate", !canAct() || state.age < 10),
-    activityCard("Волонтерство", "Карма +6, репутация +2", "volunteer", !canAct() || state.age < 12),
-    activityCard("Соцсети", "Известность, связи", "social", !canAct() || state.age < 12),
-    activityCard("Стиль", `${fmt(styleCost)}, внешность +6`, "style", !canAct() || state.age < 14 || state.personalMoney < styleCost),
-    activityCard("Отпуск", `${fmt(vacationCost)}, счастье +12`, "vacation", !canAct() || state.age < 18 || state.personalMoney < vacationCost),
-    activityCard("Лотерея", `${fmt(80)}, шанс выигрыша`, "lottery", state.age < 18 || state.personalMoney < 80 || state.event),
-    activityCard("Азартная игра", `${fmt(180)}, риск`, "gamble", state.age < 18 || state.personalMoney < 180 || state.event),
-    activityCard("Мелкая кража", "Риск судимости", "theft", !canAct() || state.age < 14),
-    activityCard("Интервью", "Известность +5, деньги", "interview", !canAct() || state.fame < 15),
-    activityCard("Реклама", "Доход от известности", "ad", !canAct() || state.fame < 25),
-    activityCard("Адвокат", `${fmt(lawyerCost)}, смягчить дело или след`, "lawyer", !canAct() || ((state.criminalRecord < 1) && !(state.activeCases || []).length) || state.personalMoney < lawyerCost),
-    activityCard("Извиниться", "Карма +4, стресс -3", "apologize", !canAct() || state.age < 7 || state.karma > 80)
-  );
-  s.append(grid);
-  root.append(s);
-
-  const status = section("Статус", "");
-  const statusTags = document.createElement("div");
-  statusTags.className = "tagline";
-  [`Статус: ${window.GameData.legalStatuses?.[state.legalStatus]?.name || state.legalStatus}`, `Штрафы: ${(state.fines || []).filter((fine) => !fine.paid).length}`, `Судимость: ${state.criminalRecord}`, `Кредит: ${state.creditScore}/100`, `Резерв: ${emergencyFundMonths()} мес.`, `Связи: ${state.network}/100`, `Репутация: ${state.reputation}/100`].forEach((text) => {
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = text;
-    statusTags.append(tag);
-  });
-  status.append(statusTags);
-  root.append(status);
   return root;
-}
-
-function activityCard(title, meta, type, disabled) {
-  return card(title, "", meta, button(disabled ? "Недоступно" : "Сделать", () => activityAction(type), {
-    disabled,
-    className: disabled ? "" : "primary",
-  }));
 }
 
 
@@ -2313,12 +2654,40 @@ function renderContent() {
   els.content.replaceChildren(root);
 }
 
-function render() {
+// --- Scroll preservation ---------------------------------------------------
+// A full render() rebuilds the DOM via replaceChildren, which otherwise snaps
+// the page back to the top. We keep the viewport steady for same-life, same-tab
+// re-renders (performing an action, living a year, search/filter), scroll to the
+// content start on tab changes, and scroll to the very top only when the life or
+// app mode changes (new game, death, back to creator).
+let prevTab = null;
+let prevMode = null;
+let prevLifeId = null;
+let forceScrollReset = false;
+
+function lifeIdentity() {
+  return `${state.generation || 1}|${state.firstName || ""}|${state.lastName || ""}`;
+}
+
+function scrollToContentStart() {
+  const target = els.content;
+  if (!target || typeof target.getBoundingClientRect !== "function") return;
+  const top = target.getBoundingClientRect().top + (window.scrollY || 0) - 12;
+  window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "auto" });
+}
+
+function renderApp() {
   const app = document.querySelector(".app");
   const isCreator = getAppMode() === "creator";
   const isDeath = getAppMode() === "death";
   app.classList.toggle("creator-mode", isCreator);
   app.classList.toggle("death-mode", isDeath);
+  renderYearPreview();
+  if (isCreator || isDeath) {
+    // The mobile "Ещё" sheet only makes sense in the live game.
+    navMoreOpen = false;
+    document.getElementById("navMoreSheet")?.remove();
+  }
   if (isCreator) {
     els.subtitle.textContent = "Настройте новую жизнь или доверьте старт случайности.";
     els.notice.textContent = "";
@@ -2345,5 +2714,36 @@ function render() {
   renderContent();
 }
 
-  window.GameUI = { els, render };
+function render() {
+  const mode = getAppMode();
+  const lifeId = lifeIdentity();
+  const savedX = window.scrollX || 0;
+  const savedY = window.scrollY || 0;
+  const tabChanged = mode === "life" && prevMode === "life" && prevTab !== null && prevTab !== state.tab;
+  const modeChanged = prevMode !== null && prevMode !== mode;
+  const lifeChanged = prevLifeId !== null && prevLifeId !== lifeId;
+  const resetTop = forceScrollReset || modeChanged || lifeChanged;
+
+  renderApp();
+
+  prevTab = state.tab;
+  prevMode = mode;
+  prevLifeId = lifeId;
+  forceScrollReset = false;
+
+  if (resetTop) {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  } else if (tabChanged) {
+    scrollToContentStart();
+  } else {
+    window.scrollTo(savedX, savedY);
+  }
+}
+
+// Let game flow (e.g. starting a new life) request a scroll-to-top on next render.
+function requestScrollReset() {
+  forceScrollReset = true;
+}
+
+  window.GameUI = { els, render, requestScrollReset };
 })();

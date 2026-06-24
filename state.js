@@ -150,16 +150,16 @@ function createNewLife(options = {}) {
   const playerGender = characterCreation.genders[options.gender] ? options.gender : Math.random() > 0.5 ? "male" : "female";
   const socialClassId = socialClasses[options.socialClass] ? options.socialClass : pick(Object.keys(socialClasses));
   const socialClass = socialClasses[socialClassId];
-  const first = cleanName(options.firstName) || pick(names[playerGender]);
-  const last = cleanName(options.lastName) || pick(names.last);
+  const first = cleanName(options.firstName) || nameFor(st.country, playerGender);
+  const last = cleanName(options.lastName) || surnameFor(st.country);
   const fatherAge = 25 + roll(15);
   const motherAge = 23 + roll(13);
   st.family = [
     person("player", first, "Главный герой", playerGender, 0, true, "Ребенок", 100),
-    person("mother", pick(names.female), "Мама", "female", motherAge, true, randomParentJob(socialClassId), 72 + roll(18) + socialClass.parentBondBonus),
-    person("father", pick(names.male), "Папа", "male", fatherAge, true, randomParentJob(socialClassId), 62 + roll(24) + socialClass.parentBondBonus),
-    person("grandma1", pick(names.female), "Бабушка", "female", motherAge + 24 + roll(10), true, "Пенсионер", 45 + roll(30)),
-    person("grandpa1", pick(names.male), "Дедушка", "male", motherAge + 25 + roll(12), true, "Пенсионер", 40 + roll(30)),
+    person("mother", nameFor(st.country, "female"), "Мама", "female", motherAge, true, randomParentJob(socialClassId), 72 + roll(18) + socialClass.parentBondBonus),
+    person("father", nameFor(st.country, "male"), "Папа", "male", fatherAge, true, randomParentJob(socialClassId), 62 + roll(24) + socialClass.parentBondBonus),
+    person("grandma1", nameFor(st.country, "female"), "Бабушка", "female", motherAge + 24 + roll(10), true, "Пенсионер", 45 + roll(30)),
+    person("grandpa1", nameFor(st.country, "male"), "Дедушка", "male", motherAge + 25 + roll(12), true, "Пенсионер", 40 + roll(30)),
   ];
   st.family.forEach((member) => {
     member.bond = clamp(member.bond, 0, 100);
@@ -196,6 +196,17 @@ function createNewLife(options = {}) {
 
 function cleanName(value) {
   return String(value || "").trim().slice(0, 28);
+}
+
+// Country-aware name helpers. Fall back to the legacy Russian pool if GameNames
+// is unavailable (e.g. in isolated tests that don't load it).
+function nameFor(country, gender) {
+  if (window.GameNames?.firstName) return window.GameNames.firstName(country, gender);
+  return pick(gender === "female" ? names.female : names.male);
+}
+function surnameFor(country) {
+  if (window.GameNames?.lastName) return window.GameNames.lastName(country);
+  return pick(names.last);
 }
 
 function resolveTraits(traits = {}) {

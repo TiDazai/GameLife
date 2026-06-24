@@ -53,12 +53,14 @@
     return window.GameData?.npcNames || window.GameData?.names || { male: ["Илья"], female: ["Анна"], last: ["Новиков"], occupations: ["специалист"] };
   }
 
-  function randomFirstName(gender) {
+  function randomFirstName(gender, country) {
+    if (country && window.GameNames?.firstName) return window.GameNames.firstName(country, gender);
     const names = nameData();
     return pick(names[gender] || names.female || ["Анна"]);
   }
 
-  function randomLastName() {
+  function randomLastName(country) {
+    if (country && window.GameNames?.lastName) return window.GameNames.lastName(country);
     return pick(nameData().last || ["Новиков"]);
   }
 
@@ -90,10 +92,11 @@
   function createNpc(input = {}) {
     const gender = input.gender === "female" ? "female" : "male";
     const relationType = relationTypes.includes(input.relationType) ? input.relationType : "acquaintance";
+    const country = input.country;
     const npc = {
       id: input.id || randomId(relationType),
-      name: safeText(input.name || input.firstName, randomFirstName(gender)),
-      lastName: safeText(input.lastName, randomLastName()),
+      name: safeText(input.name || input.firstName, randomFirstName(gender, country)),
+      lastName: safeText(input.lastName, randomLastName(country)),
       gender,
       age: Math.max(0, Math.floor(safeNumber(input.age, 18))),
       role: safeText(input.role, roleByRelation[relationType] || "Знакомый"),
@@ -121,6 +124,7 @@
     const fullName = String(raw.name || "").trim().split(/\s+/);
     return createNpc({
       ...raw,
+      country: raw.country || state.country,
       name: raw.firstName || fullName[0] || raw.name,
       lastName: raw.lastName || (fullName.length > 1 ? fullName.slice(1).join(" ") : state.lastName),
       relationType,
@@ -164,8 +168,9 @@
     return createNpc({
       relationType: input.married ? "spouse" : "partner",
       gender,
+      country: state.country,
       age: Math.max(16, (state.age || 18) + roll(5) - 2),
-      lastName: input.lastName || state.lastName || randomLastName(),
+      lastName: input.lastName || randomLastName(state.country) || state.lastName,
       bond: 45 + Math.floor(((state.social || 0) + (state.happiness || 0)) / 5),
       trust: 42 + Math.floor(((state.skills?.empathy || 0) / 3)),
       romance: 38 + roll(20),
@@ -179,8 +184,9 @@
     return createNpc({
       relationType: "child",
       gender,
+      country: state.country,
       age: 0,
-      lastName: state.lastName || input.lastName || randomLastName(),
+      lastName: state.lastName || input.lastName || randomLastName(state.country),
       occupation: "растет",
       bond: 80,
       trust: 72,

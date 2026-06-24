@@ -104,3 +104,79 @@ test("death summary renders a premium hero with stat cards", () => {
 test("creator screen renders character creation", () => {
   assert(render.includes("function renderCreator"));
 });
+
+test("scroll preservation helpers exist and wrap render", () => {
+  // render() saves/restores window scroll so same-tab actions don't jump to top.
+  assert(render.includes("function renderApp"));
+  assert(render.includes("scrollToContentStart"));
+  assert(render.includes("requestScrollReset"));
+  assert(render.includes("window.scrollTo"));
+  assert(render.includes("lifeIdentity"));
+});
+
+test("creator name placeholder follows the selected country", () => {
+  assert(render.includes("updateNamePlaceholders"));
+  assert(render.includes("placeholderFor"));
+});
+
+test("action center surfaces contextual recommended actions", () => {
+  assert(render.includes("function getRecommendedActions"));
+  assert(render.includes("function renderRecommendedActions"));
+  assert(render.includes("Рекомендуем сейчас"));
+  // each recommendation explains why it is shown
+  assert(render.includes("reco-why"));
+  assert(render.includes("потому что"));
+});
+
+test("life screen shows prioritized 'what matters now' alerts", () => {
+  assert(render.includes("function getLifeAlerts"));
+  assert(render.includes("function renderLifeAlerts"));
+  assert(render.includes("Что важно сейчас"));
+  assert(css.includes(".alert-list"));
+  assert(css.includes(".alert-item"));
+});
+
+test("creator is a stepped wizard with quick start + live preview", () => {
+  assert(render.includes("creator-stepper"));
+  assert(render.includes("creator-step-panel"));
+  assert(render.includes("Быстрый старт"));
+  assert(render.includes("Случайная жизнь"));
+  assert(render.includes("creator-preview"));
+  // five named steps
+  ["Кто вы", "Где вы родились", "Семья и среда", "Характер", "Цель жизни"].forEach((s) => {
+    assert(render.includes(s), `missing creator step: ${s}`);
+  });
+  assert(css.includes(".creator-stepper"));
+  assert(css.includes(".creator-step-panel"));
+});
+
+test("palette is calmer: graphite/blue/cyan with named severity tokens", () => {
+  // the neon indigo-violet primary is gone
+  assert(!css.includes("#7c6cff"), "old violet accent still present");
+  // explicit semantic severity tokens exist (risk=orange, danger=red, success=green)
+  assert(css.includes("--risk:"));
+  assert(css.includes("--danger:"));
+  assert(css.includes("--success:"));
+});
+
+test("sticky live-year footer shows a compact year preview", () => {
+  assert(html.includes('id="yearPreview"'));
+  assert(render.includes("function renderYearPreview"));
+  assert(render.includes("Действий за год"));
+  // active event blocks living and prompts a choice
+  assert(render.includes("Сначала выберите событие"));
+  assert(css.includes(".year-preview"));
+  assert(css.includes(".year-pill"));
+  assert(css.includes("position: sticky")); // footer stays in view
+});
+
+test("activities tab is a single action surface, not a duplicate grid", () => {
+  // renderActivities must only compose recommendations + the data-driven catalog,
+  // with no parallel legacy "manual activities" grid.
+  const start = render.indexOf("function renderActivities");
+  assert(start >= 0, "renderActivities missing");
+  const body = render.slice(start, start + 600);
+  assert(body.includes("renderRecommendedActions"));
+  assert(body.includes("renderDataActions"));
+  assert(!body.includes("activityCard("), "legacy activityCard grid still present in renderActivities");
+});
