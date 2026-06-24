@@ -222,6 +222,9 @@
     state.career.breakYears = 0;
     state.career.burnout = Math.max(0, state.career.burnout - 10);
     syncLegacy(state);
+    // Build the concrete employer object graph (company, workplace, boss,
+    // coworkers as NPCs) for the deepened world model.
+    if (window.GameWorkplace?.onHire) window.GameWorkplace.onHire(state, job);
     appendCareerHistory(state, `Получена работа: ${job.title}.`);
     return { ok: true, text: `Получена работа: ${job.title}.` };
   }
@@ -300,6 +303,7 @@
     if (!ready) return { ok: false, text: "Для повышения пока не хватает опыта, репутации или навыков." };
     state.career.level += 1;
     state.career.burnout = clamp(state.career.burnout + 5, 0, 100);
+    if (window.GameWorkplace?.promote) window.GameWorkplace.promote(state);
     syncLegacy(state);
     applyEffects(state, { happiness: 5, reputation: 3, stress: 5, creditScore: 1 }, {});
     appendCareerHistory(state, "Получено повышение.");
@@ -315,6 +319,7 @@
     state.career.yearsInJob = 0;
     state.job = null;
     state.profession = "none";
+    if (window.GameWorkplace?.leave) window.GameWorkplace.leave(state, reason);
     applyEffects(state, { stress: 10, happiness: -6, reputation: -3 }, {});
     syncLegacy(state);
     if (window.GameState?.notify) window.GameState.notify(reason);
