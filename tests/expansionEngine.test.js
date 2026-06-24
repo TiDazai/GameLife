@@ -235,6 +235,68 @@ test("adult relationship action syncs partner and pregnancy risk works", () => {
   assert(GameAdultRelationships.pregnancyChance(st) < 1);
 });
 
+test("life stage context maps age to a stage and adulthood flag", () => {
+  const child = GameActionLoad.getLifeStageContext({ age: 5 });
+  assert.equal(child.stage, "child");
+  assert.equal(child.isAdult, false);
+  assert.equal(child.isMinor, true);
+  const adult = GameActionLoad.getLifeStageContext({ age: 30 });
+  assert.equal(adult.stage, "adult");
+  assert.equal(adult.isAdult, true);
+});
+
+test("ordinary actions stay available across childhood, teen and adult ages", () => {
+  const st = fresh();
+  [5, 15, 30, 70].forEach((age) => {
+    st.age = age;
+    const list = GameActionEngine.getAvailableActions(st);
+    assert(list.length > 0, `no actions available at age ${age}`);
+  });
+});
+
+test("soft minAge lets actions start a little early as a child version", () => {
+  const st = fresh();
+  const has = (age) => {
+    st.age = age;
+    return GameActionEngine.getAvailableActions(st).some((a) => a.id === "teen_study_hard");
+  };
+  assert.equal(has(13), true); // natural age
+  assert.equal(has(10), true); // 3 years early, within grace -> adapted
+  assert.equal(has(8), false); // 5 years early, beyond grace -> hidden
+  // adapted run scales effect down
+  const action = GameActionData.find((a) => a.id === "teen_study_hard");
+  const early = GameActionLoad.getAgeAdjustedEffects({ age: 10 }, action);
+  assert(early.ageFactor < 1, "early action should fade");
+  assert.equal(early.adapted, true);
+  const onTime = GameActionLoad.getAgeAdjustedEffects({ age: 13 }, action);
+  assert.equal(onTime.ageFactor, 1);
+});
+
+test("adultOnly actions are hidden before 18 and unlocked at 18+", () => {
+  const st = fresh();
+  const visible = (age) => {
+    st.age = age;
+    return GameActionEngine.getAvailableActions(st).some((a) => a.id === "adult_dating_app");
+  };
+  assert.equal(visible(17), false);
+  assert.equal(visible(18), true);
+  // adaptForAge marks the reason for minors
+  const action = GameActionData.find((a) => a.id === "adult_dating_app");
+  const blocked = GameActionLoad.adaptActionForAge({ age: 16 }, action);
+  assert.equal(blocked.available, false);
+  assert.equal(blocked.hardBlocked, true);
+});
+
+test("teen social actions stay non-explicit and never touch adultStats", () => {
+  const st = fresh();
+  st.age = 15;
+  const teenSocial = GameActionEngine.getAvailableActions(st).find((a) => a.category === "social" && !a.adultOnly);
+  assert(teenSocial, "expected a teen social action");
+  GameActionEngine.performAction(st, teenSocial.id, () => 0.99);
+  assert(!st.adultStats || Object.keys(st.adultStats).length === 0, "adultStats must not appear for minors");
+  assert.equal(GameAdultRelationships.isUnlocked(st), false);
+});
+
 test("save/load round trip preserves new fields at version 9", () => {
   const st = fresh({ lifeGoal: "career" });
   st.actionFatigue = 33;

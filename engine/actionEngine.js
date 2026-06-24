@@ -15,7 +15,13 @@
     return (state.age || 0) >= 18;
   }
 
+  // Age availability is delegated to the soft life-stage model when present:
+  // adult-only content stays hard-gated at 18, ordinary actions become soft
+  // (start a little early as a "child version", fade out past their natural window).
   function meetsBasics(state, action) {
+    const Adapt = Load()?.adaptActionForAge;
+    if (Adapt) return Adapt(state, action).available;
+    // Fallback to the legacy hard gate if the life-stage helper is unavailable.
     if (action.minAge !== undefined && state.age < action.minAge) return false;
     if (action.maxAge !== undefined && state.age > action.maxAge) return false;
     if (action.adultOnly && !isAdultAllowed(state)) return false;
@@ -97,7 +103,10 @@
     }
 
     const dimKey = action.diminishingReturnsKey || action.cooldownKey || action.id;
-    const efficiency = Load()?.getActionEfficiency ? Load().getActionEfficiency(state, dimKey) : 1;
+    let efficiency = Load()?.getActionEfficiency ? Load().getActionEfficiency(state, dimKey) : 1;
+    // A too-early "child version" of an action contributes less than the real thing.
+    const ageFactor = Load()?.adaptActionForAge ? Load().adaptActionForAge(state, action).ageFactor : 1;
+    if (ageFactor < 1) efficiency *= ageFactor;
 
     let resultText = action.resultTexts?.success || action.description || "";
     let kind = "success";

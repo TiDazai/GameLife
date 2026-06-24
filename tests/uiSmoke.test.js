@@ -46,3 +46,61 @@ test("dark theme and responsive breakpoints are present", () => {
   assert(css.includes("@media (min-width: 1080px)"));
   assert(css.includes("@media (max-width: 520px)"));
 });
+
+test("dark theme is the default and light is an opt-in", () => {
+  // currentTheme() returns "dark" unless the user explicitly stored "light".
+  assert(render.includes('=== "light" ? "light" : "dark"'));
+  assert(css.includes('body[data-theme="light"]'));
+});
+
+test("reusable premium UI helpers are defined", () => {
+  ["function statCard", "function progressBar", "function badge", "function badgeRow", "function personCard", "function emptyState", "function filterChips", "function stackedBar", "function modalCard"].forEach((sig) => {
+    assert(render.includes(sig), `missing helper: ${sig}`);
+  });
+  [".stat-card", ".progress", ".badge", ".person-card", ".empty-state", ".chip", ".stack-bar"].forEach((klass) => {
+    assert(css.includes(klass), `missing css: ${klass}`);
+  });
+});
+
+test("adult 18+ relationship block is gated behind isUnlocked", () => {
+  // The block only renders when the engine reports it unlocked (adult partner, 18+).
+  assert(render.includes("function renderAdultRelationships"));
+  assert(render.includes("isUnlocked"));
+  assert(render.includes("return null"));
+  assert(render.includes("Близость 18+"));
+  assert(render.includes('badgeRow([["18+", "adult"]])'));
+});
+
+test("action center renders catalog with search, filters and badges", () => {
+  assert(render.includes("function renderDataActions"));
+  assert(render.includes("actionSearch"));
+  assert(render.includes("filterChips"));
+  assert(render.includes("actionBadges"));
+  assert(render.includes("Показать ещё"));
+  // age-adapted "child version" badge wiring
+  assert(render.includes("детская версия"));
+});
+
+test("world tab supports region + search filters without breaking render", () => {
+  assert(render.includes("function renderWorld"));
+  assert(render.includes("worldRegion"));
+  assert(render.includes("worldSearch"));
+  assert(render.includes("buildList"));
+});
+
+test("money tab shows a CSS-only capital structure bar", () => {
+  assert(render.includes("Структура капитала"));
+  assert(render.includes("stackedBar"));
+  assert(css.includes(".stack-seg"));
+});
+
+test("death summary renders a premium hero with stat cards", () => {
+  assert(render.includes("function renderDeathSummary"));
+  assert(render.includes("death-hero"));
+  assert(render.includes("Итоги жизни"));
+  assert(css.includes(".death-hero"));
+});
+
+test("creator screen renders character creation", () => {
+  assert(render.includes("function renderCreator"));
+});

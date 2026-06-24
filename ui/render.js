@@ -441,10 +441,11 @@ function renderTabs() {
 }
 
 function currentTheme() {
+  // Dark is the primary theme; light is an explicit opt-in.
   try {
-    return localStorage.getItem(themeKey) === "dark" ? "dark" : "light";
+    return localStorage.getItem(themeKey) === "light" ? "light" : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
@@ -454,6 +455,186 @@ function applyTheme(theme = currentTheme()) {
     els.theme.textContent = theme === "dark" ? "Светлая" : "Тёмная";
     els.theme.setAttribute("aria-pressed", String(theme === "dark"));
   }
+}
+
+// ---- Reusable premium UI building blocks ---------------------------------
+
+function sectionHeader(title, text) {
+  // Backwards-compatible alias of section(): returns a <section.section> shell.
+  return section(title, text);
+}
+
+function badge(label, kind = "") {
+  const node = document.createElement("span");
+  node.className = `badge${kind ? ` is-${kind}` : ""}`;
+  node.textContent = label;
+  return node;
+}
+
+function badgeRow(badges = []) {
+  const wrap = document.createElement("div");
+  wrap.className = "badge-row";
+  badges.forEach(([label, kind]) => wrap.append(badge(label, kind)));
+  return wrap;
+}
+
+function statusPill(label, kind = "") {
+  const node = document.createElement("span");
+  node.className = `status-pill${kind ? ` is-${kind}` : ""}`;
+  node.textContent = label;
+  return node;
+}
+
+function progressBar(label, value, max = 100, options = {}) {
+  const pct = clamp(Math.round((Number(value) / max) * 100), 0, 100);
+  const node = document.createElement("div");
+  node.className = `progress${options.tone ? ` tone-${options.tone}` : ""}`;
+  const head = document.createElement("div");
+  head.className = "progress-head";
+  const l = document.createElement("span");
+  l.className = "ph-label";
+  l.textContent = label;
+  const v = document.createElement("span");
+  v.className = "ph-value";
+  v.textContent = options.valueText || `${Math.round(Number(value))}${options.suffix ?? `/${max}`}`;
+  head.append(l, v);
+  const track = document.createElement("div");
+  track.className = "progress-track";
+  const fill = document.createElement("div");
+  fill.className = "progress-fill";
+  fill.style.setProperty("--value", `${pct}%`);
+  track.append(fill);
+  node.append(head, track);
+  return node;
+}
+
+// CSS-only stacked structure bar. segments: [{ label, value, tone }].
+function stackedBar(segments = [], options = {}) {
+  const items = segments.filter((s) => Number(s.value) > 0);
+  const total = items.reduce((sum, s) => sum + Number(s.value), 0) || 1;
+  const node = document.createElement("div");
+  node.className = "stack-bar-block";
+  const bar = document.createElement("div");
+  bar.className = "stack-bar";
+  items.forEach((s) => {
+    const seg = document.createElement("div");
+    seg.className = `stack-seg${s.tone ? ` tone-${s.tone}` : ""}`;
+    seg.style.setProperty("--w", `${(Number(s.value) / total) * 100}%`);
+    seg.title = `${s.label}: ${s.format ? s.format(s.value) : s.value}`;
+    bar.append(seg);
+  });
+  if (!items.length) {
+    const seg = document.createElement("div");
+    seg.className = "stack-seg tone-muted";
+    seg.style.setProperty("--w", "100%");
+    bar.append(seg);
+  }
+  const legend = document.createElement("div");
+  legend.className = "stack-legend";
+  (items.length ? items : segments).forEach((s) => {
+    const item = document.createElement("span");
+    item.className = "stack-legend-item";
+    const dot = document.createElement("i");
+    dot.className = `stack-dot${s.tone ? ` tone-${s.tone}` : ""}`;
+    const text = document.createElement("span");
+    text.textContent = `${s.label}: ${s.format ? s.format(s.value) : s.value}`;
+    item.append(dot, text);
+    legend.append(item);
+  });
+  node.append(bar, legend);
+  return node;
+}
+
+function statCard(label, value, options = {}) {
+  const node = document.createElement("article");
+  node.className = `stat-card${options.accent ? ` accent-${options.accent}` : ""}`;
+  const top = document.createElement("div");
+  top.className = "sc-top";
+  const l = document.createElement("div");
+  l.className = "sc-label";
+  l.textContent = label;
+  top.append(l);
+  if (options.icon) {
+    const icon = document.createElement("div");
+    icon.className = "sc-icon";
+    icon.textContent = options.icon;
+    top.append(icon);
+  }
+  const v = document.createElement("div");
+  v.className = "sc-value";
+  v.textContent = value;
+  node.append(top, v);
+  if (options.sub) {
+    const sub = document.createElement("div");
+    sub.className = "sc-sub";
+    sub.textContent = options.sub;
+    node.append(sub);
+  }
+  return node;
+}
+
+function emptyState(title, text, icon = "✦") {
+  const node = document.createElement("div");
+  node.className = "empty-state";
+  const i = document.createElement("div");
+  i.className = "es-icon";
+  i.textContent = icon;
+  const t = document.createElement("div");
+  t.className = "es-title";
+  t.textContent = title;
+  node.append(i, t);
+  if (text) {
+    const p = document.createElement("div");
+    p.className = "mini";
+    p.textContent = text;
+    node.append(p);
+  }
+  return node;
+}
+
+function filterChips(entries, activeId, onPick) {
+  const wrap = document.createElement("div");
+  wrap.className = "chips";
+  entries.forEach(([id, label]) => {
+    const chip = button(label, () => onPick(id));
+    chip.className = `chip${activeId === id ? " active" : ""}`;
+    wrap.append(chip);
+  });
+  return wrap;
+}
+
+function personCard(name, role, lines = [], actionNode, options = {}) {
+  const node = document.createElement("article");
+  node.className = "person-card";
+  const top = document.createElement("div");
+  top.className = "pc-top";
+  const avatar = document.createElement("div");
+  avatar.className = `avatar${options.tone ? ` tone-${options.tone}` : ""}`;
+  avatar.textContent = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  const id = document.createElement("div");
+  const nm = document.createElement("div");
+  nm.className = "person-name";
+  nm.textContent = name;
+  const rl = document.createElement("div");
+  rl.className = "person-role";
+  rl.textContent = role;
+  id.append(nm, rl);
+  top.append(avatar, id);
+  node.append(top);
+  lines.filter(Boolean).forEach((line) => {
+    const d = document.createElement("div");
+    d.className = "person-details";
+    d.textContent = line;
+    node.append(d);
+  });
+  if (actionNode) node.append(actionNode);
+  return node;
+}
+
+function modalCard(title, text) {
+  const node = section(title, text);
+  node.classList.add("event-modal");
+  return node;
 }
 
 function toggleTheme() {
@@ -476,12 +657,26 @@ function renderEvent() {
   const node = section(state.event.title, state.event.description || state.event.text);
   node.classList.add("event-modal");
   applyVisualState(node, `${state.event.title} ${state.event.description || state.event.text}`);
+  const tone = visualKind(`${state.event.title} ${state.event.description || state.event.text}`);
+  if (tone) node.append(badgeRow([[tone === "danger" ? "опасно" : tone === "risk" ? "риск" : tone === "success" ? "удача" : "событие", tone === "success" ? "success" : tone === "risk" ? "risk" : tone === "danger" ? "danger" : "important"]]));
   const grid = document.createElement("div");
-  grid.className = "button-grid";
+  grid.className = "grid";
   for (const option of state.event.options) {
-    grid.append(card(option.label, option.description || "", "Событийный выбор", button(option.label, () => {
+    const choice = document.createElement("article");
+    choice.className = "card";
+    applyVisualState(choice, `${option.label} ${option.description || ""}`);
+    const h = document.createElement("h3");
+    h.textContent = option.label;
+    choice.append(h);
+    if (option.description) {
+      const p = document.createElement("p");
+      p.textContent = option.description;
+      choice.append(p);
+    }
+    choice.append(button("Выбрать", () => {
       window.GameEvents.chooseEventOption(state.event.id, option.id);
-    }, { className: "primary" })));
+    }, { className: "primary" }));
+    grid.append(choice);
   }
   node.append(grid);
   overlay.append(node);
@@ -503,35 +698,91 @@ function appendTimelineEntry(container, entry) {
   container.append(item);
 }
 
+function lifeStatusPills() {
+  const pills = [];
+  const partner = window.GameRelationshipEngine?.activePartner?.(state);
+  if (state.health >= 75) pills.push(["Здоров", "good"]);
+  else if (state.health < 40) pills.push(["Слабое здоровье", "danger"]);
+  if ((state.actionFatigue || 0) >= 60) pills.push(["Устал", "risk"]);
+  if (state.stress >= 65) pills.push(["В стрессе", "risk"]);
+  if (state.happiness >= 75) pills.push(["Счастлив", "good"]);
+  if (partner) pills.push([state.relationship?.married ? "В браке" : "Влюблён", "romance"]);
+  if (state.debt > 0) pills.push(["В долгах", "danger"]);
+  if (state.career?.jobId && (state.career?.burnout || 0) < 40) pills.push(["Карьерный рост", "money"]);
+  if (!pills.length) pills.push(["Спокойная жизнь", ""]);
+  return pills.slice(0, 6);
+}
+
+function renderLifeHero() {
+  const hero = document.createElement("section");
+  hero.className = "hero";
+  const top = document.createElement("div");
+  top.className = "hero-top";
+  const avatar = document.createElement("div");
+  avatar.className = "hero-avatar";
+  avatar.textContent = (state.firstName || "?").charAt(0).toUpperCase();
+  const id = document.createElement("div");
+  id.className = "hero-id";
+  const name = document.createElement("div");
+  name.className = "hero-name";
+  name.textContent = `${state.firstName} ${state.lastName}`.trim() || "Без имени";
+  const meta = document.createElement("div");
+  meta.className = "hero-meta";
+  const goal = window.GameLifeGoals?.describe?.(state);
+  meta.textContent = [
+    ageText(state.age),
+    `${cityName()}, ${countryName()}`,
+    stageName(),
+    socialClassData().name,
+    goal ? `Цель: ${goal.title}` : null,
+  ].filter(Boolean).join(" · ");
+  id.append(name, meta);
+  top.append(avatar, id);
+  hero.append(top);
+
+  const status = document.createElement("div");
+  status.className = "hero-status";
+  lifeStatusPills().forEach(([label, kind]) => status.append(statusPill(label, kind)));
+  hero.append(status);
+  return hero;
+}
+
+function renderLifeDashboard() {
+  const node = section("Главное", "Состояние жизни одним взглядом.");
+  const grid = document.createElement("div");
+  grid.className = "grid stat-grid";
+  grid.append(
+    statCard("Капитал", fmt(netWorth()), { icon: "₿", accent: "money", sub: `Наличные ${fmt(state.personalMoney)}` }),
+    statCard("Здоровье", `${state.health}%`, { icon: "✚", accent: state.health < 40 ? "bad" : "health", sub: `Психика ${state.mental}%` }),
+    statCard("Счастье", `${state.happiness}%`, { icon: "☺", sub: `Стресс ${state.stress}%` }),
+    statCard("Карьера", state.career?.jobId ? `ур. ${state.careerLevel}` : "нет работы", { icon: "▲", accent: "career", sub: `Доход ${fmt(annualSalary())}` }),
+  );
+  node.append(grid);
+
+  const bars = document.createElement("div");
+  bars.className = "content";
+  bars.append(
+    progressBar("Здоровье", state.health, 100, { tone: "health" }),
+    progressBar("Энергия", state.energy, 100, { tone: "good" }),
+    progressBar("Стресс", state.stress, 100, { tone: state.stress >= 60 ? "bad" : "warn" }),
+    progressBar("Усталость года", state.actionFatigue || 0, 100, { tone: "warn" }),
+  );
+  const goal = window.GameLifeGoals?.describe?.(state);
+  if (goal) bars.append(progressBar(`Цель: ${goal.title}`, goal.progress, 100, { tone: "romance", suffix: "%" }));
+  node.append(bars);
+  return node;
+}
+
 function renderLife() {
   const root = document.createDocumentFragment();
-  const profile = section("Персонаж", "");
-  const tags = document.createElement("div");
-  tags.className = "tagline";
-  [
-    `${ageText(state.age)}`,
-    `${state.firstName} ${state.lastName}`.trim(),
-    `${cityName()}, ${countryName()}`,
-    `Семья: ${socialClassData().name.toLowerCase()}`,
-    `Район ${state.districtQuality}/100`,
-    `Образование ${state.educationAccess}/100`,
-    `Счастье ${state.happiness}%`,
-    `Здоровье ${state.health}%`,
-    `Внешность ${state.looks}%`,
-    `Известность ${state.fame}%`,
-    `Карма ${state.karma}`,
-  ].forEach((text) => {
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = text;
-    tags.append(tag);
-  });
-  profile.append(tags);
+  root.append(renderLifeHero());
+  root.append(renderLifeDashboard());
   const cc = characterCreation || {};
   const talentNames = (state.talents || []).map((id) => (cc.talents || []).find((t) => t.id === id)?.name).filter(Boolean);
   const weaknessNames = (state.weaknesses || []).map((id) => (cc.weaknesses || []).find((w) => w.id === id)?.name).filter(Boolean);
   const personalityNames = (state.personalityTraits || []).map((id) => (cc.personalityTraits || []).find((p) => p.id === id)?.name).filter(Boolean);
   if (talentNames.length || weaknessNames.length || personalityNames.length) {
+    const traitsSection = section("Характер", "");
     const traitsLine = document.createElement("div");
     traitsLine.className = "tagline";
     [
@@ -544,9 +795,9 @@ function renderLife() {
       tag.textContent = text;
       traitsLine.append(tag);
     });
-    profile.append(traitsLine);
+    traitsSection.append(traitsLine);
+    root.append(traitsSection);
   }
-  root.append(profile);
 
   const timeline = section("Жизненный этап", "Доступные решения зависят от возраста, семьи, города, здоровья и накопленных навыков.");
   const line = document.createElement("div");
@@ -608,9 +859,9 @@ const ACTION_CATEGORY_LABELS = {
 
 function actionBadges(action) {
   const badges = [];
-  if (action.adultOnly) badges.push(["взрослое", "danger"]);
+  if (action.adultOnly) badges.push(["18+", "adult"]);
   if (action.risk) badges.push(["риск", "risk"]);
-  if (action.cost?.money) badges.push(["дорого", "important"]);
+  if (action.cost?.money) badges.push(["платно", "money"]);
   if (action.category === "family" || action.category === "social") badges.push(["отношения", "success"]);
   if (action.category === "health") badges.push(["здоровье", "success"]);
   if (action.category === "career") badges.push(["карьера", "important"]);
@@ -639,70 +890,91 @@ function renderFatigueBar() {
   return node;
 }
 
+let actionSearchQuery = "";
+let actionShowAll = false;
+const ACTION_PAGE = 24;
+
 function renderDataActions() {
   const engine = window.GameActionEngine;
-  const node = section("Действия", "Большой каталог решений. Чем чаще повторяете похожее за год — тем слабее эффект.");
+  const node = section("Центр действий", "Большой каталог решений. Чем чаще повторяете похожее за год — тем слабее эффект.");
   if (!engine) {
-    const p = document.createElement("p");
-    p.className = "mini";
-    p.textContent = "Каталог действий недоступен.";
-    node.append(p);
+    node.append(emptyState("Каталог недоступен", "Движок действий не загрузился."));
     return node;
   }
   const cats = engine.categories(state);
   const available = new Set(cats.map((c) => c.id));
   if (actionCategoryFilter !== "all" && !available.has(actionCategoryFilter)) actionCategoryFilter = "all";
 
-  const chips = document.createElement("div");
-  chips.className = "tagline";
-  const allChip = button(`${ACTION_CATEGORY_LABELS.all} (${cats.reduce((s, c) => s + c.count, 0)})`, () => {
-    actionCategoryFilter = "all";
+  const chipEntries = [["all", `${ACTION_CATEGORY_LABELS.all} (${cats.reduce((s, c) => s + c.count, 0)})`]];
+  cats.forEach((c) => chipEntries.push([c.id, `${ACTION_CATEGORY_LABELS[c.id] || c.id} (${c.count})`]));
+  node.append(filterChips(chipEntries, actionCategoryFilter, (id) => {
+    actionCategoryFilter = id;
+    actionShowAll = false;
     render();
-  });
-  allChip.className = `tab ${actionCategoryFilter === "all" ? "active" : "secondary-tab"}`;
-  chips.append(allChip);
-  cats.forEach((c) => {
-    const chip = button(`${ACTION_CATEGORY_LABELS[c.id] || c.id} (${c.count})`, () => {
-      actionCategoryFilter = c.id;
-      render();
-    });
-    chip.className = `tab ${actionCategoryFilter === c.id ? "active" : "secondary-tab"}`;
-    chips.append(chip);
-  });
-  node.append(chips);
+  }));
 
-  const list = engine.getAvailableActions(state, actionCategoryFilter === "all" ? {} : { category: actionCategoryFilter });
+  const search = textInput("actionSearch", "Поиск действия по названию");
+  search.value = actionSearchQuery;
+  node.append(field("Поиск", search));
+
   const grid = document.createElement("div");
   grid.className = "grid";
-  if (!list.length) {
-    const p = document.createElement("p");
-    p.className = "mini";
-    p.textContent = "Сейчас нет доступных действий этой категории.";
-    grid.append(p);
-  }
-  list.slice(0, 60).forEach((action) => {
-    const canDo = engine.canPerform(state, action);
-    const moneyMeta = action.cost?.money ? `${fmt(action.cost.money)} · ` : "";
-    const node2 = card(action.title, "", `${moneyMeta}${action.description || ""}`, button(canDo ? "Сделать" : "Недоступно", () => {
-      window.GameActionEngine.performAction(state, action.id);
-      render();
-    }, { disabled: !canDo, className: canDo ? "primary" : "" }));
-    const badges = actionBadges(action);
-    if (badges.length) {
-      const badgeWrap = document.createElement("div");
-      badgeWrap.className = "tagline";
-      badges.forEach(([label, kind]) => {
-        const b = document.createElement("span");
-        b.className = "tag";
-        if (kind) b.classList.add(`is-${kind}`);
-        b.textContent = label;
-        badgeWrap.append(b);
-      });
-      node2.append(badgeWrap);
+  const footer = document.createElement("div");
+
+  const buildGrid = () => {
+    grid.replaceChildren();
+    footer.replaceChildren();
+    const query = actionSearchQuery.trim().toLowerCase();
+    let list = engine.getAvailableActions(state, actionCategoryFilter === "all" ? {} : { category: actionCategoryFilter });
+    if (query) {
+      list = list.filter((a) => (a.title || "").toLowerCase().includes(query) || (a.description || "").toLowerCase().includes(query));
     }
-    grid.append(node2);
+    if (!list.length) {
+      grid.append(emptyState("Пусто", "Нет доступных действий по этому фильтру. Попробуйте другую категорию или возраст."));
+      return;
+    }
+    const limit = actionShowAll ? list.length : ACTION_PAGE;
+    list.slice(0, limit).forEach((action) => {
+      const canDo = engine.canPerform(state, action);
+      const adapt = window.GameActionLoad?.adaptActionForAge?.(state, action) || {};
+      const moneyMeta = action.cost?.money ? `${fmt(action.cost.money)} · ` : "";
+      let reason = "";
+      if (!canDo) {
+        if (action.cost?.money && (state.personalMoney || 0) < action.cost.money) reason = `Нужно ${fmt(action.cost.money)}.`;
+        else reason = adapt.reason || "Сейчас недоступно.";
+      } else if (adapt.adapted) {
+        reason = adapt.reason || "";
+      }
+      const node2 = card(action.title, "", `${moneyMeta}${action.description || ""}`, button(canDo ? "Сделать" : "Недоступно", () => {
+        window.GameActionEngine.performAction(state, action.id);
+        render();
+      }, { disabled: !canDo, className: canDo ? "primary" : "" }));
+      const badges = actionBadges(action);
+      if (adapt.adapted) badges.unshift(["детская версия", "important"]);
+      if (badges.length) node2.append(badgeRow(badges));
+      if (reason) {
+        const r = document.createElement("div");
+        r.className = "mini";
+        r.textContent = reason;
+        node2.append(r);
+      }
+      grid.append(node2);
+    });
+    if (!actionShowAll && list.length > ACTION_PAGE) {
+      footer.append(button(`Показать ещё (${list.length - ACTION_PAGE})`, () => {
+        actionShowAll = true;
+        buildGrid();
+      }, { className: "wide" }));
+    }
+  };
+
+  search.addEventListener("input", () => {
+    actionSearchQuery = search.value;
+    actionShowAll = false;
+    buildGrid();
   });
-  node.append(grid);
+  buildGrid();
+  node.append(grid, footer);
   return node;
 }
 
@@ -1140,18 +1412,27 @@ function renderHealth() {
   const allConditions = window.GameHealthEngine?.allStateConditions?.(state) || [];
   const root = document.createDocumentFragment();
   const s = section("Здоровье", "Сон, стресс, привычки и игровые состояния влияют на действия, карьеру, деньги, отношения, события и риск смерти.");
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  grid.append(
-    metricCard("Здоровье", profile.health, "Общее физическое состояние."),
-    metricCard("Психика", profile.mental, "Устойчивость к напряжению."),
-    metricCard("Стресс", profile.stress, "Нагрузка от событий и быта."),
-    metricCard("Энергия", profile.energy, "Запас сил на год."),
-    metricCard("Форма", profile.fitness, "Движение и выносливость."),
-    metricCard("Сон", profile.sleep, "Восстановление."),
-    metricCard("Иммунитет", profile.immunity, "Игровая сопротивляемость состояниям.")
+  const cards = document.createElement("div");
+  cards.className = "grid stat-grid";
+  cards.append(
+    statCard("Здоровье", `${Math.round(profile.health)}/100`, { icon: "❤", accent: "health", sub: "Физическое состояние" }),
+    statCard("Психика", `${Math.round(profile.mental)}/100`, { icon: "🧠", accent: "romance", sub: "Устойчивость" }),
+    statCard("Энергия", `${Math.round(profile.energy)}/100`, { icon: "⚡", accent: "career", sub: "Запас сил" }),
+    statCard("Иммунитет", `${Math.round(profile.immunity)}/100`, { icon: "🛡", accent: "health", sub: "Сопротивляемость" })
   );
-  s.append(grid);
+  s.append(cards);
+  const bars = document.createElement("div");
+  bars.className = "grid";
+  bars.append(
+    progressBar("Здоровье", profile.health, 100, { tone: "health" }),
+    progressBar("Психика", profile.mental, 100, { tone: "romance" }),
+    progressBar("Стресс", profile.stress, 100, { tone: "bad" }),
+    progressBar("Энергия", profile.energy, 100, { tone: "good" }),
+    progressBar("Форма", profile.fitness, 100, { tone: "health" }),
+    progressBar("Сон", profile.sleep, 100, { tone: "good" }),
+    progressBar("Иммунитет", profile.immunity, 100, { tone: "health" })
+  );
+  s.append(bars);
   root.append(s);
 
   const conditions = section("Состояния", allConditions.length ? "" : "Серьезных активных состояний нет.");
@@ -1286,15 +1567,28 @@ function renderMoney() {
   const economy = state.economy || {};
   const expenses = window.GameEconomyEngine?.calculateAnnualExpenses?.(state) || { total: personalCost() };
   const s = section("Личная экономика", `Капитал сейчас: ${fmt(netWorth())}. Плановые годовые расходы: ${fmt(expenses.total)}.`);
-  const status = document.createElement("div");
-  status.className = "tagline";
-  [`Наличные: ${fmt(economy.cash ?? state.personalMoney)}`, `Банк: ${fmt(economy.bankBalance || 0)}`, `Доход года: ${fmt(economy.yearlyIncome || 0)}`, `Расходы года: ${fmt(economy.yearlyExpenses || 0)}`, `Налоговая база: ${fmt(economy.taxBase ?? state.taxableIncome)}`, `Налоговый долг: ${fmt(economy.taxDebt ?? state.taxDebt)}`, `Рейтинг: ${state.creditScore}/100`].forEach((text) => {
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = text;
-    status.append(tag);
-  });
-  s.append(status);
+
+  const assets = economy.assets || {};
+  const cards = document.createElement("div");
+  cards.className = "grid stat-grid";
+  cards.append(
+    statCard("Капитал", fmt(netWorth()), { icon: "₿", accent: "money", sub: `Рейтинг ${state.creditScore}/100` }),
+    statCard("Наличные", fmt(economy.cash ?? state.personalMoney), { icon: "💵", accent: "money", sub: `Банк ${fmt(economy.bankBalance || 0)}` }),
+    statCard("Доход года", fmt(economy.yearlyIncome || 0), { icon: "📈", accent: "career", sub: `Расходы ${fmt(economy.yearlyExpenses || 0)}` }),
+    statCard("Налоги", fmt(economy.taxDebt ?? state.taxDebt), { icon: "🏛", accent: "bad", sub: `База ${fmt(economy.taxBase ?? state.taxableIncome)}` })
+  );
+  s.append(cards);
+
+  // CSS-only capital structure bar: where the net worth lives.
+  const structure = section("Структура капитала", "Распределение активов и обязательств. Наведите на сегмент для деталей.");
+  structure.append(stackedBar([
+    { label: "Наличные", value: economy.cash ?? state.personalMoney, tone: "money", format: fmt },
+    { label: "Банк/депозиты", value: (economy.bankBalance || 0) + (assets.deposits || 0), tone: "good", format: fmt },
+    { label: "Инвестиции", value: (assets.stocks || 0) + (assets.pension || 0), tone: "career", format: fmt },
+    { label: "Недвижимость", value: (economy.realEstate || []).reduce((sum, p) => sum + (p.value || 0), 0), tone: "health", format: fmt },
+    { label: "Долги", value: (economy.loans || []).reduce((sum, l) => sum + (l.principal || 0) + (l.overdue || 0), 0) + (economy.taxDebt || 0), tone: "bad", format: fmt },
+  ]));
+
   const grid = document.createElement("div");
   grid.className = "grid";
   const loanOffers = [
@@ -1319,6 +1613,7 @@ function renderMoney() {
   });
   s.append(grid);
   root.append(s);
+  root.append(structure);
 
   const expenseBlock = section("Расходы года", "Расчет включает жилье, еду и быт, детей, партнера и семью, медицину, транспорт, кредиты, налоги, образ жизни и страховку.");
   const expenseTags = document.createElement("div");
@@ -1583,20 +1878,26 @@ function renderRelationships() {
     const pg = document.createElement("div");
     pg.className = "grid";
     people.forEach((npc) => {
-      const meta = `${npc.role}: связь ${npc.bond}/100, доверие ${npc.trust}/100, конфликт ${npc.conflict}/100`;
-      pg.append(card(`${npc.name} ${npc.lastName || ""}`.trim(), npc.occupation || "", meta, button("Поговорить", () => relationshipAction("talk", npc.id), {
-        disabled: !canAct(),
-        className: "primary",
-      })));
-      pg.append(card("Поддержка", `${npc.name}: помощь влияет на психику и доверие.`, `Уважение ${npc.respect}/100`, button("Поддержать", () => relationshipAction("support", npc.id), {
-        disabled: !canAct(),
-      })));
-      pg.append(card("Финансы", `${npc.name}: можно помочь или попросить о помощи.`, `Деньги NPC: ${fmt(npc.money || 0)}`, button("Помочь деньгами", () => relationshipAction("help_money", npc.id), {
-        disabled: !canAct() || state.personalMoney + state.familyMoney < Math.floor(400 * cityData().cost),
-      })));
-      pg.append(card("Обратиться за помощью", `${npc.name} может поддержать, если есть доверие.`, `Доверие ${npc.trust}/100`, button("Попросить", () => relationshipAction("ask_help", npc.id), {
-        disabled: !canAct() || npc.bond < 38 || npc.trust < 30,
-      })));
+      const tone = ["friend", "best_friend"].includes(npc.relationType) ? "good" : npc.relationType === "enemy" ? "bad" : "family";
+      const lines = [
+        npc.occupation || npc.role,
+        `Связь ${npc.bond}/100 · Доверие ${npc.trust}/100`,
+        `Конфликт ${npc.conflict}/100 · Уважение ${npc.respect}/100`,
+      ];
+      const actions = document.createElement("div");
+      actions.className = "button-grid two";
+      actions.append(
+        button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct(), className: "primary" }),
+        button("Поддержать", () => relationshipAction("support", npc.id), { disabled: !canAct() }),
+        button("Помочь деньгами", () => relationshipAction("help_money", npc.id), {
+          disabled: !canAct() || state.personalMoney + state.familyMoney < Math.floor(400 * cityData().cost),
+          className: "money",
+        }),
+        button("Попросить помощь", () => relationshipAction("ask_help", npc.id), {
+          disabled: !canAct() || npc.bond < 38 || npc.trust < 30,
+        })
+      );
+      pg.append(personCard(`${npc.name} ${npc.lastName || ""}`.trim(), npc.role, lines, actions, { tone }));
     });
     social.append(pg);
     root.append(social);
@@ -1626,20 +1927,15 @@ function renderAdultRelationships() {
   if (!engine?.isUnlocked?.(state)) return null;
   const info = engine.describe(state);
   const stats = info?.stats || {};
-  const node = section("Близость (18+)", "Взрослые отношения по взаимному согласию. Без откровенных деталей — игра уважает приватность.");
-  const tags = document.createElement("div");
-  tags.className = "tagline";
+  const node = section("Близость 18+", "Взрослые отношения по взаимному согласию. Без откровенных деталей — игра уважает приватность.");
+  node.querySelector(".section-head > div")?.prepend(badgeRow([["18+", "adult"]]));
+  const bars = document.createElement("div");
+  bars.className = "grid";
   [
-    ["Близость", stats.intimacy], ["Страсть", stats.passion], ["Доверие", stats.trust],
-    ["Романтика", stats.romance], ["Конфликт", stats.conflict], ["Ревность", stats.jealousy],
-    ["Готовность к семье", stats.familyPlans], ["Общее будущее", stats.sharedFuture],
-  ].forEach(([label, value]) => {
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = `${label}: ${value ?? 0}/100`;
-    tags.append(tag);
-  });
-  node.append(tags);
+    ["Близость", stats.intimacy, "romance"], ["Страсть", stats.passion, "romance"], ["Доверие", stats.trust, "good"],
+    ["Романтика", stats.romance, "romance"], ["Ревность", stats.jealousy, "warn"], ["Общее будущее", stats.sharedFuture, "money"],
+  ].forEach(([label, value, tone]) => bars.append(progressBar(label, value ?? 0, 100, { tone })));
+  node.append(bars);
   const grid = document.createElement("div");
   grid.className = "grid";
   engine.getActions(state).forEach((action) => {
@@ -1864,6 +2160,37 @@ function scoreName(key) {
 function renderDeathSummary() {
   const root = document.createDocumentFragment();
   const summary = state.lifeSummary || window.GameLifeSummaryEngine?.createLifeSummary?.(state, { persistAchievements: false }) || state.legacySnapshot || {};
+
+  const hero = document.createElement("section");
+  hero.className = "section death-hero";
+  const heroName = summary.name || `${state.firstName} ${state.lastName}`.trim();
+  const heroAge = summary.age ?? state.deathAge ?? state.age;
+  const heroCause = summary.deathCause || window.GameLifeSummaryEngine?.gameDeathCause?.(state) || state.deathCause || "естественный финал";
+  const heroType = summary.lifeType?.name || state.lifeType?.name || "Тихая гавань";
+  const dh = document.createElement("div");
+  dh.className = "death-hero-top";
+  dh.innerHTML = `<div class="death-mark">✦</div>`;
+  const dhText = document.createElement("div");
+  const dhName = document.createElement("h2");
+  dhName.className = "death-name";
+  dhName.textContent = heroName;
+  const dhMeta = document.createElement("p");
+  dhMeta.className = "death-meta";
+  dhMeta.textContent = `${heroAge} лет · ${heroType} · ${heroCause}`;
+  dhText.append(dhName, dhMeta);
+  dh.append(dhText);
+  hero.append(dh);
+  const heroCards = document.createElement("div");
+  heroCards.className = "grid stat-grid";
+  heroCards.append(
+    statCard("Капитал", fmt(summary.netWorth ?? netWorth()), { icon: "₿", accent: "money" }),
+    statCard("Счастье", `${summary.happiness ?? state.happiness}/100`, { icon: "☺", accent: "romance" }),
+    statCard("Карма", `${summary.karma ?? state.karma}/100`, { icon: "☯", accent: "health" }),
+    statCard("Поколение", `${summary.generation || state.generation || 1}`, { icon: "⛓", accent: "career" })
+  );
+  hero.append(heroCards);
+  root.append(hero);
+
   const title = section("Итоги жизни", "");
   const tags = document.createElement("div");
   tags.className = "tagline";
