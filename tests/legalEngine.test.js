@@ -154,7 +154,7 @@ test("normalizeState migrates legacy legal fields", () => {
     karma: 42,
     criminalRecord: 1,
   });
-  assert.equal(migrated.version, 8);
+  assert.equal(migrated.version, 9);
   assert.equal(migrated.criminalRecord, 1);
   assert(["restricted", "convicted"].includes(migrated.legalStatus));
   assert(Number.isFinite(migrated.publicTrust));

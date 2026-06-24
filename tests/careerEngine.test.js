@@ -156,7 +156,7 @@ test("normalizeState migrates old education and career fields", () => {
     experience: 5,
     certificates: ["digital"],
   });
-  assert.equal(migrated.version, 8);
+  assert.equal(migrated.version, 9);
   assert.equal(migrated.education.levelId, "university");
   assert.equal(migrated.career.level, 2);
   assert.equal(migrated.career.experience, 5);

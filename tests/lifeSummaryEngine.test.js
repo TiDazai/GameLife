@@ -160,7 +160,7 @@ test("normalizeState migrates summary fields", () => {
     lifeSummary: { name: "Иван Сводкин", lifeType: { name: "Тихая гавань" } },
     achievements: [{ id: "demo", name: "Демо" }],
   });
-  assert.equal(migrated.version, 8);
+  assert.equal(migrated.version, 9);
   assert.equal(migrated.lifeSummary.lifeType.name, "Тихая гавань");
   assert.equal(migrated.achievements.length, 1);
 });

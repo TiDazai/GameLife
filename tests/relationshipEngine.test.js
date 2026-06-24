@@ -77,7 +77,7 @@ test("normalizeState migrates legacy family, partner and children to NPCs", () =
     children: [{ id: "child-1", name: "Лена", gender: "female", age: 2, bond: 80, health: 82 }],
   };
   const migrated = GameState.normalizeState(legacy);
-  assert.equal(migrated.version, 8);
+  assert.equal(migrated.version, 9);
   assert(migrated.npcs.some((npc) => npc.relationType === "parent"));
   assert(migrated.npcs.some((npc) => npc.relationType === "spouse"));
   assert(migrated.npcs.some((npc) => npc.relationType === "child"));

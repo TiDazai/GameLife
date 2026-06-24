@@ -141,7 +141,7 @@ test("normalizeState migrates legacy health fields", () => {
     energy: 51,
     skills: { fitness: 33 },
   });
-  assert.equal(migrated.version, 8);
+  assert.equal(migrated.version, 9);
   assert.equal(migrated.healthProfile.health, 64);
   assert.equal(migrated.healthProfile.mental, 58);
   assert.equal(migrated.healthProfile.stress, 44);

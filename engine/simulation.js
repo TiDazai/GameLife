@@ -250,6 +250,13 @@ function endYear() {
   const economySummary = window.GameEconomyEngine?.resolveEconomyYear?.(state, Math.random);
   if (economySummary) notes.push(`финансы: доход ${fmt(economySummary.income)}, расходы ${fmt(economySummary.expenses)}`);
 
+  const fatigueNotes = window.GameActionLoad?.applyYearlyFatigueConsequences?.(state) || [];
+  fatigueNotes.forEach((entry) => notes.push(entry));
+  window.GameWorldEvents?.tick?.(state, Math.random);
+  window.GameStoryArcs?.tick?.(state, Math.random);
+  window.GameLifeGoals?.evaluate?.(state);
+  window.GameAdultRelationships?.clearIfLocked?.(state);
+
   ageFamily();
   naturalChanges();
   state.age += 1;
@@ -265,6 +272,7 @@ function endYear() {
   }
   state.maxActions = maxActionsForAge();
   state.actions = state.maxActions;
+  window.GameActionLoad?.resetYearlyActionLoad?.(state);
   updateEducationByAge();
   if (resolvePlayerDeath()) {
     requestRender();

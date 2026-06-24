@@ -3,7 +3,7 @@
   const historyKey = "gamelife-generation-history";
 
 function saveGame() {
-  const snapshot = { ...state, version: 8 };
+  const snapshot = { ...state, version: 9 };
   localStorage.setItem("life-economy-save", JSON.stringify(snapshot));
   notify("Жизнь сохранена.");
 }

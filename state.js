@@ -8,7 +8,7 @@
 const rub = new Intl.NumberFormat("ru-RU");
 
 const baseState = {
-  version: 8,
+  version: 9,
   age: 0,
   year: 2026,
   tab: "life",
@@ -123,6 +123,21 @@ const baseState = {
   generation: 1,
   familyHistory: [],
   inheritedFrom: null,
+  yearlyActionCount: 0,
+  actionFatigue: 0,
+  yearlyActivityLoad: 0,
+  repeatedActions: {},
+  lastActionResults: [],
+  talents: [],
+  weaknesses: [],
+  hiddenModifiers: {},
+  personalityTraits: [],
+  lifeGoal: null,
+  lifeGoalProgress: {},
+  storyArcs: [],
+  worldEvents: [],
+  worldEventHistory: [],
+  adultStats: null,
 };
 
 const state = createNewLife();
@@ -164,6 +179,8 @@ function createNewLife(options = {}) {
   st.traits = resolveTraits(options.traits);
   st.skills.empathy = Math.floor((st.traits.kindness + livingParentCountFor(st) * 8) / 12);
   st.skills.logic = Math.floor(st.traits.curiosity / 14);
+  applyBirthProfile(st, options);
+  if (window.GameLifeGoals?.assignGoal) window.GameLifeGoals.assignGoal(st, options.lifeGoal);
   if (window.GameCareerEngine?.normalizeCareerState) window.GameCareerEngine.normalizeCareerState(st, st);
   if (window.GameEconomyEngine?.normalizeEconomyState) window.GameEconomyEngine.normalizeEconomyState(st, st);
   if (window.GameHealthEngine?.normalizeHealthState) window.GameHealthEngine.normalizeHealthState(st, st);
@@ -191,6 +208,55 @@ function resolveTraits(traits = {}) {
   );
 }
 
+function applyBirthProfile(st, options = {}) {
+  const cc = characterCreation || {};
+  const talentPool = cc.talents || [];
+  const weaknessPool = cc.weaknesses || [];
+  const personalityPool = cc.personalityTraits || [];
+  const modifierPool = cc.hiddenModifierPool || [];
+
+  const pickSome = (pool, requested, count) => {
+    if (Array.isArray(requested) && requested.length) {
+      return pool.filter((item) => requested.includes(item.id));
+    }
+    const copy = [...pool];
+    const out = [];
+    for (let i = 0; i < count && copy.length; i += 1) {
+      out.push(copy.splice(roll(copy.length), 1)[0]);
+    }
+    return out;
+  };
+
+  const chosenTalents = pickSome(talentPool, options.talents, 1 + roll(2));
+  const chosenWeaknesses = pickSome(weaknessPool, options.weaknesses, roll(2));
+  const chosenPersonality = pickSome(personalityPool, options.personalityTraits, 1 + roll(2));
+
+  st.talents = chosenTalents.map((t) => t.id);
+  st.weaknesses = chosenWeaknesses.map((w) => w.id);
+  st.personalityTraits = chosenPersonality.map((p) => p.id);
+
+  const applyPack = (pack) => {
+    if (pack.effects) {
+      for (const [key, amount] of Object.entries(pack.effects)) {
+        if (key in st && typeof st[key] === "number") st[key] = clamp(st[key] + amount, 0, 100);
+      }
+    }
+    if (pack.skills) {
+      for (const [id, amount] of Object.entries(pack.skills)) {
+        st.skills[id] = clamp((st.skills[id] || 0) + amount, 0, 100);
+      }
+    }
+  };
+  chosenTalents.forEach(applyPack);
+  chosenWeaknesses.forEach(applyPack);
+
+  st.hiddenModifiers = {};
+  modifierPool.forEach((mod) => {
+    st.hiddenModifiers[mod.id] = mod.min + roll(mod.max - mod.min + 1);
+  });
+  return st;
+}
+
 function normalizeState(st) {
   const fresh = JSON.parse(JSON.stringify(baseState));
   const merged = { ...fresh, ...st };
@@ -198,7 +264,7 @@ function normalizeState(st) {
   merged.skills = { ...fresh.skills, ...(st.skills || {}) };
   merged.traits = { ...fresh.traits, ...(st.traits || {}) };
   merged.documents = { ...fresh.documents, ...(st.documents || {}) };
-  merged.version = Number.isFinite(st.version) ? Math.max(8, st.version) : 8;
+  merged.version = Number.isFinite(st.version) ? Math.max(9, st.version) : 9;
   merged.flags = Array.isArray(st.flags) ? st.flags : [];
   merged.event = st.event?.id && typeof st.event === "object" ? {
     id: st.event.id,
@@ -272,6 +338,21 @@ function normalizeState(st) {
   merged.generation = Number.isFinite(st.generation) ? st.generation : 1;
   merged.familyHistory = Array.isArray(st.familyHistory) ? st.familyHistory : [];
   merged.inheritedFrom = st.inheritedFrom || null;
+  merged.yearlyActionCount = Number.isFinite(st.yearlyActionCount) ? st.yearlyActionCount : 0;
+  merged.actionFatigue = clamp(Number.isFinite(st.actionFatigue) ? st.actionFatigue : 0, 0, 100);
+  merged.yearlyActivityLoad = Number.isFinite(st.yearlyActivityLoad) ? st.yearlyActivityLoad : 0;
+  merged.repeatedActions = st.repeatedActions && typeof st.repeatedActions === "object" ? st.repeatedActions : {};
+  merged.lastActionResults = Array.isArray(st.lastActionResults) ? st.lastActionResults : [];
+  merged.talents = Array.isArray(st.talents) ? st.talents : [];
+  merged.weaknesses = Array.isArray(st.weaknesses) ? st.weaknesses : [];
+  merged.hiddenModifiers = st.hiddenModifiers && typeof st.hiddenModifiers === "object" ? st.hiddenModifiers : {};
+  merged.personalityTraits = Array.isArray(st.personalityTraits) ? st.personalityTraits : [];
+  merged.lifeGoal = st.lifeGoal || null;
+  merged.lifeGoalProgress = st.lifeGoalProgress && typeof st.lifeGoalProgress === "object" ? st.lifeGoalProgress : {};
+  merged.storyArcs = Array.isArray(st.storyArcs) ? st.storyArcs : [];
+  merged.worldEvents = Array.isArray(st.worldEvents) ? st.worldEvents : [];
+  merged.worldEventHistory = Array.isArray(st.worldEventHistory) ? st.worldEventHistory : [];
+  merged.adultStats = st.adultStats && typeof st.adultStats === "object" ? st.adultStats : null;
   if (window.GameRelationshipEngine?.normalizeNpcs) window.GameRelationshipEngine.normalizeNpcs(merged);
   else syncLegacyFromNpcs(merged);
   return merged;
@@ -596,11 +677,17 @@ function getAppMode() {
 }
 
 function canAct(cost = 1) {
-  return state.actions >= cost && !state.event && !state.deceased;
+  return !state.event && !state.deceased;
 }
 
 function spendAction(cost = 1) {
   state.actions = Math.max(0, state.actions - cost);
+  if (window.GameActionLoad?.recordActionUse) {
+    window.GameActionLoad.recordActionUse(state);
+  } else {
+    state.yearlyActionCount = (state.yearlyActionCount || 0) + 1;
+    state.yearlyActivityLoad = (state.yearlyActivityLoad || 0) + cost;
+  }
 }
 
 function addLog(text) {

@@ -137,5 +137,5 @@ test("active event saves and loads", () => {
   st.event = null;
   GameStorage.loadGame();
   assert.equal(GameState.state.event.id, "school_class_conflict");
-  assert.equal(GameState.state.version, 8);
+  assert.equal(GameState.state.version, 9);
 });

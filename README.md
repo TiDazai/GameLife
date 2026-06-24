@@ -200,5 +200,22 @@ node tests/economyEngine.test.js
 node tests/healthEngine.test.js
 node tests/legalEngine.test.js
 node tests/lifeSummaryEngine.test.js
+node tests/expansionEngine.test.js
 node tests/uiSmoke.test.js
 ```
+
+## Расширение мира (версия состояния 9)
+
+Глубокая прокачка контента и систем. Всё новое — data-driven, логика в engine, UI только отображает и вызывает engine.
+
+- **География.** `data/countries.js`: 50+ стран в 12 регионах, 120+ городов с полями `cost/salary/education/safety/opportunity/housing/culture/nightlife/romance/climate/migrationAttractiveness/tags`. Экспортируется `regions`. В создании персонажа добавлен фильтр по региону.
+- **Безлимит действий + усталость.** `engine/actionLoad.js`. Жёсткого лимита действий в году больше нет (`canAct` проверяет только событие/смерть). Каждое действие копит `yearlyActivityLoad` и `actionFatigue`; повтор похожих действий за год даёт затухающий эффект; в конце года перегрузка бьёт по здоровью/психике/энергии, спокойный год — восстанавливает.
+- **Каталог действий.** `data/actions/*.js` (200 действий, 10 категорий) + `engine/actionEngine.js`. Условия/эффекты переиспользуют `GameEventConditions`/`GameEventEffects`. Вкладка «Активности» показывает каталог с фильтром по категориям, бейджами (взрослое/риск/дорого/…), индикатором усталости.
+- **Взрослые отношения 18+.** `data/adultRelationships.js` + `engine/adultRelationships.js`. Только совершеннолетние, по взаимному согласию, без откровенных деталей (fade-to-black). Блок виден только при возрасте 18+ и взрослом партнёре.
+- **Цели жизни.** `data/lifeGoals.js` + `engine/lifeGoalsEngine.js`. Выбор при создании или случайно, вехи и прогресс, модификатор итоговой оценки.
+- **Сюжетные линии.** `data/storyArcs.js` + `engine/storyArcsEngine.js`. Многолетние ветвящиеся истории, развиваются по годам.
+- **События мира.** `data/worldEvents.js` + `engine/worldEventsEngine.js`. Глобальные эпохи (кризис, бум, пандемия и т. п.) с длительностью и ежегодными эффектами.
+- **Богатое создание персонажа.** Таланты, слабости, черты характера и скрытые модификаторы в `data/characterCreation.js`, применяются в `state.createNewLife`.
+- **События.** Новые файлы `data/events/expansion_*.js` (250+ событий) добавляются в общий `GameEventData` через существующий движок.
+
+Совместимость сохранений: `normalizeState` доливает новые поля поверх старых сейвов, версия поднята до 9.

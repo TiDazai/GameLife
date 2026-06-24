@@ -161,7 +161,7 @@ test("normalizeState migrates legacy money fields", () => {
     taxDebt: 50,
     assets: { deposits: 100, stocks: 200, pension: 300, property: 400 },
   });
-  assert.equal(migrated.version, 8);
+  assert.equal(migrated.version, 9);
   assert.equal(migrated.economy.cash, 700);
   assert(migrated.economy.loans.some((loan) => loan.principal === 300));
   assert.equal(migrated.economy.taxBase, 1000);
