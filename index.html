@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Симулятор жизни</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=mobile-ui" />
   </head>
   <body>
     <main class="app" aria-label="Симулятор жизни">
@@ -14,6 +14,7 @@
           <p id="subtitle">0 лет.</p>
         </div>
         <div class="top-actions">
+          <button id="themeButton" type="button" aria-pressed="false">Тема</button>
           <button id="saveButton" type="button">Сохранить</button>
           <button id="loadButton" type="button">Загрузить</button>
           <button id="resetButton" type="button">Новая игра</button>
@@ -33,8 +34,51 @@
       <footer class="footer">
         <button id="endDayButton" class="end-day" type="button">Прожить год</button>
       </footer>
+
+      <nav id="bottomNav" class="bottom-nav" aria-label="Основная навигация"></nav>
     </main>
 
+    <script src="./utils/random.js"></script>
+    <script src="./data/countries.js"></script>
+    <script src="./data/names.js"></script>
+    <script src="./data/professions.js"></script>
+    <script src="./data/skills.js"></script>
+    <script src="./data/assets.js"></script>
+    <script src="./data/characterCreation.js"></script>
+    <script src="./data/lifeOutcomes.js"></script>
+    <script src="./data/lifeSummary.js"></script>
+    <script src="./data/careerEducation.js"></script>
+    <script src="./data/economy.js"></script>
+    <script src="./data/health.js"></script>
+    <script src="./data/legal.js"></script>
+    <script src="./data/relationshipActions.js"></script>
+    <script src="./data/events/childhood.js"></script>
+    <script src="./data/events/school.js"></script>
+    <script src="./data/events/teen.js"></script>
+    <script src="./data/events/adult.js"></script>
+    <script src="./data/events/career.js"></script>
+    <script src="./data/events/relationship.js"></script>
+    <script src="./data/events/money.js"></script>
+    <script src="./data/events/health.js"></script>
+    <script src="./data/events/legal.js"></script>
+    <script src="./engine/npcFactory.js"></script>
+    <script src="./engine/careerEngine.js"></script>
+    <script src="./engine/economyEngine.js"></script>
+    <script src="./engine/healthEngine.js"></script>
+    <script src="./engine/legalEngine.js"></script>
+    <script src="./engine/lifeSummaryEngine.js"></script>
+    <script src="./state.js"></script>
+    <script src="./engine/relationshipEngine.js"></script>
+    <script src="./engine/relationshipActions.js"></script>
+    <script src="./engine/actions.js"></script>
+    <script src="./engine/events/eventConditions.js"></script>
+    <script src="./engine/events/eventEffects.js"></script>
+    <script src="./engine/events/eventWeights.js"></script>
+    <script src="./engine/events/eventEngine.js"></script>
+    <script src="./engine/events.js"></script>
+    <script src="./engine/simulation.js"></script>
+    <script src="./ui/render.js"></script>
+    <script src="./storage/saveLoad.js"></script>
     <script src="./game.js"></script>
   </body>
 </html>
