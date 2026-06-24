@@ -175,7 +175,10 @@
   }
 
   function countryTaxRate(state) {
-    const rule = data().taxRates?.[state.country] || { income: 0.18, penalty: 0.06 };
+    // Priority: explicit per-country override -> country taxProfile -> safe default.
+    const country = data().countries?.[state.country];
+    const profileRule = country?.taxProfile ? data().taxProfiles?.[country.taxProfile] : null;
+    const rule = data().taxRates?.[state.country] || profileRule || { income: 0.18, penalty: 0.06 };
     return rule.income + (state.documents?.taxId ? 0 : rule.penalty);
   }
 
@@ -185,17 +188,19 @@
     const mode = window.GameState?.budgetModeData ? window.GameState.budgetModeData() : data().budgetModes[state.budgetMode] || data().budgetModes.balanced;
     const home = housingItem(state);
     const adult = state.age >= 18 && !state.livingWithParents;
+    // World events can inflate/deflate consumer prices (not loans/taxes).
+    const priceMod = window.GameWorldEvents?.combinedModifiers?.(state)?.prices || 1;
     const ownedMaintenance = (state.economy?.realEstate || []).filter((item) => item.primary || !item.rented).reduce((sum, item) => {
       const rule = data().realEstateTypes[item.type] || data().realEstateTypes.apartment;
       return sum + Math.floor(item.value * rule.maintenanceRate);
     }, 0);
-    const housing = adult ? Math.floor(home.annual * c.cost) + ownedMaintenance : Math.floor((window.GameState?.householdCost?.() || 0) * (state.age < 18 ? 1 : rules.familySupportAdultShare));
-    const foodHousehold = adult ? Math.floor((rules.foodHousehold + rules.baseLiving * 0.35) * c.cost * mode.cost) : 0;
-    const children = adult ? Math.floor((state.children?.length || 0) * rules.child * c.cost) : 0;
+    const housing = adult ? Math.floor(home.annual * c.cost * priceMod) + ownedMaintenance : Math.floor((window.GameState?.householdCost?.() || 0) * (state.age < 18 ? 1 : rules.familySupportAdultShare));
+    const foodHousehold = adult ? Math.floor((rules.foodHousehold + rules.baseLiving * 0.35) * c.cost * mode.cost * priceMod) : 0;
+    const children = adult ? Math.floor((state.children?.length || 0) * rules.child * c.cost * priceMod) : 0;
     const partnerFamily = adult ? Math.floor((state.relationship ? rules.partner : 0) * c.cost + (state.livingWithParents ? 120 * c.cost : 0)) : 0;
-    const medical = adult ? Math.floor((rules.medicalBase + Math.max(0, 55 - state.health) * 5) * c.cost) : 0;
-    const transport = adult && window.GameState?.hasPossession?.("car") ? Math.floor(rules.transportCar * c.cost) : 0;
-    const lifestyle = adult ? Math.floor(Math.max(rules.lifestyleMultiplierFloor, (state.lifestyle || 50) / 70) * 240 * c.cost * mode.cost) : 0;
+    const medical = adult ? Math.floor((rules.medicalBase + Math.max(0, 55 - state.health) * 5) * c.cost * priceMod) : 0;
+    const transport = adult && window.GameState?.hasPossession?.("car") ? Math.floor(rules.transportCar * c.cost * priceMod) : 0;
+    const lifestyle = adult ? Math.floor(Math.max(rules.lifestyleMultiplierFloor, (state.lifestyle || 50) / 70) * 240 * c.cost * mode.cost * priceMod) : 0;
     const insurance = adult ? Math.floor((rules.insurance[state.documents?.insurance] || 0) * c.cost) : 0;
     const loans = estimateLoanPayment(state);
     const taxes = estimateTaxDue(state);
@@ -362,10 +367,11 @@
       state.economy.yearlyIncome += income;
       notes.push(`пенсия +${fmt(state, income)}`);
     }
+    const propertyMod = window.GameWorldEvents?.combinedModifiers?.(state)?.property || 1;
     for (const property of state.economy.realEstate) {
       const rule = data().realEstateTypes[property.type] || data().realEstateTypes.apartment;
       const growth = rule.annualGrowthMin + rng() * (rule.annualGrowthMax - rule.annualGrowthMin);
-      property.value = Math.max(0, Math.floor(property.value * (1 + growth)));
+      property.value = Math.max(0, Math.floor(property.value * (1 + growth) * propertyMod));
       if (property.rented) {
         const rent = Math.floor(property.value * rule.rentRate);
         state.economy.cash += rent;

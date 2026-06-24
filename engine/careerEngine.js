@@ -124,6 +124,9 @@
   }
 
   function countrySalaryFactor(state) {
+    // Prefer the data-driven salaryMultiplier; fall back to legacy values for old saves.
+    const country = window.GameData?.countries?.[state.country];
+    if (country && Number.isFinite(country.salaryMultiplier)) return country.salaryMultiplier;
     return { ru: 0.92, de: 1.18, jp: 1.12, us: 1.28, se: 1.2 }[state.country] || 1;
   }
 
@@ -142,7 +145,8 @@
     const reputationFactor = 1 + (state.reputation || 0) / 420 + (state.portfolio || 0) / 520 + (state.network || 0) / 620;
     const recordPenalty = Math.max(0.62, 1 - (state.criminalRecord || 0) * 0.08);
     const legalPenalty = 1 - (window.GameLegalEngine?.careerPenalty?.(state, job) || 0);
-    return Math.max(0, Math.floor(job.baseSalary * city.salary * countrySalaryFactor(state) * educationSalaryFactor(state) * skillFactor * experienceFactor * levelFactor * reputationFactor * recordPenalty * legalPenalty));
+    const worldSalary = window.GameWorldEvents?.combinedModifiers?.(state)?.salary || 1;
+    return Math.max(0, Math.floor(job.baseSalary * city.salary * countrySalaryFactor(state) * educationSalaryFactor(state) * skillFactor * experienceFactor * levelFactor * reputationFactor * recordPenalty * legalPenalty * worldSalary));
   }
 
   function appendCareerHistory(state, text) {
@@ -192,7 +196,9 @@
   function interviewScore(state, job) {
     const education = educationRank(state) - educationRank(state, job.requirements.education);
     const skills = skillAverageForJob(state, job);
-    return (
+    // World events change how many opportunities are on the market.
+    const opportunityMod = window.GameWorldEvents?.combinedModifiers?.(state)?.opportunity || 1;
+    const base =
       28 +
       education * 8 +
       (state.knowledge - job.requirements.knowledge) * 0.45 +
@@ -202,8 +208,8 @@
       (state.portfolio || 0) * 0.25 +
       (state.career?.mentor ? 6 : 0) -
       (state.stress || 0) * 0.25 -
-      (window.GameLegalEngine?.careerPenalty?.(state, job) || 0) * 45
-    );
+      (window.GameLegalEngine?.careerPenalty?.(state, job) || 0) * 45;
+    return base * opportunityMod;
   }
 
   function hire(state, jobId) {
@@ -431,6 +437,7 @@
     missingRequirements,
     meetsJobRequirements,
     availableJobs,
+    countrySalaryFactor,
     calculateSalary,
     study,
     interview,

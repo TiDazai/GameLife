@@ -174,6 +174,67 @@ test("story arcs start and advance", () => {
   assert(instance.step || instance.status !== "active");
 });
 
+test("action with cost.money charges the price once (no double deduction)", () => {
+  const st = fresh();
+  st.age = 18;
+  st.grades = 60;
+  st.personalMoney = 1000;
+  // career_enroll_university: cost.money 500 and a mirrored effects.money -500
+  const before = st.personalMoney;
+  const result = GameActionEngine.performAction(st, "career_enroll_university", () => 0.99);
+  assert.equal(result.ok, true);
+  assert.equal(before - st.personalMoney, 500); // single charge, not 1000
+});
+
+test("action flags add and removeFlags remove via performAction", () => {
+  const st = fresh();
+  st.age = 25;
+  st.social = 60;
+  st.personalMoney = 5000;
+  GameActionEngine.performAction(st, "adult_serious_relationship", () => 0.99);
+  assert(st.flags.includes("in_relationship"));
+  const before = st.personalMoney;
+  const married = GameActionEngine.performAction(st, "adult_marry", () => 0.99);
+  assert.equal(married.ok, true);
+  assert(st.flags.includes("married"));
+  assert(!st.flags.includes("in_relationship")); // removeFlags applied
+  assert.equal(before - st.personalMoney, 1500); // adult_marry charged once
+});
+
+test("active world event modifier changes annual expenses", () => {
+  const st = fresh();
+  st.age = 30;
+  st.livingWithParents = false;
+  st.worldEvents = [];
+  const before = GameEconomyEngine.calculateAnnualExpenses(st).total;
+  const inflation = GameData.worldEvents.find((w) => w.modifiers && w.modifiers.prices > 1);
+  assert(inflation, "expected a world event with a prices modifier");
+  st.worldEvents = [{ id: inflation.id, title: inflation.title, remaining: 3 }];
+  const after = GameEconomyEngine.calculateAnnualExpenses(st).total;
+  assert(after > before, "inflation world event should raise expenses");
+});
+
+test("adult relationship action syncs partner and pregnancy risk works", () => {
+  const st = fresh();
+  st.age = 24;
+  st.personalMoney = 1000;
+  st.relationship = { name: "Партнёр", age: 25, trust: 50, romance: 50, conflict: 10, bond: 50 };
+  GameAdultRelationships.performAction(st, "romantic_evening");
+  assert(st.relationship.romance > 50, "romance should sync onto partner");
+  assert(st.relationship.bond > 50, "intimacy should raise partner bond");
+  // pregnancy is an abstract risk gated to applicable adult relationships
+  st.adultStats.pregnancyRisk = 100;
+  st.adultStats.contraceptionDiscussed = 0;
+  st.expectingChild = false;
+  assert.equal(GameAdultRelationships.pregnancyChance(st), 1);
+  assert.equal(GameAdultRelationships.maybePregnancy(st, () => 0), true);
+  assert.equal(st.expectingChild, true);
+  // discussing contraception lowers the risk
+  st.expectingChild = false;
+  st.adultStats.contraceptionDiscussed = 1;
+  assert(GameAdultRelationships.pregnancyChance(st) < 1);
+});
+
 test("save/load round trip preserves new fields at version 9", () => {
   const st = fresh({ lifeGoal: "career" });
   st.actionFatigue = 33;

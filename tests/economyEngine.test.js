@@ -123,6 +123,19 @@ test("tax calculation pays or creates tax debt", () => {
   assert(st.taxDebt > 0);
 });
 
+test("country tax rate resolves from taxProfile with legacy override and fallback", () => {
+  const rate = (country) => GameEconomyEngine.countryTaxRate({ country, documents: { taxId: true } });
+  assert.equal(rate("fr"), GameData.taxProfiles.high.income); // taxProfile high, no legacy override
+  assert.equal(rate("br"), GameData.taxProfiles.high.income);
+  assert.equal(rate("in"), GameData.taxProfiles.medium.income); // medium
+  assert.equal(rate("ae"), GameData.taxProfiles.no_income_tax.income); // 0, tax-free
+  assert.equal(rate("de"), GameData.taxRates.de.income); // legacy per-country override wins
+  assert.equal(rate("unknown_country"), 0.18); // safe default
+  // missing tax id adds the penalty surcharge
+  const withoutId = GameEconomyEngine.countryTaxRate({ country: "fr", documents: {} });
+  assert.equal(withoutId, GameData.taxProfiles.high.income + GameData.taxProfiles.high.penalty);
+});
+
 test("stocks return is deterministic with fixed rng", () => {
   const st = adult();
   st.economy.assets.stocks = 1000;

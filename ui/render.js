@@ -922,21 +922,82 @@ function renderWorld() {
   current.append(tags);
   root.append(current);
 
-  const moves = section("Переезд", "После 18 лет можно переехать кнопкой, если хватает денег на старт.");
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  for (const [countryId, country] of Object.entries(countries)) {
-    for (const [cityId, c] of Object.entries(country.cities)) {
-      const active = countryId === state.country && cityId === state.city;
-      const cost = Math.floor(c.housing * 1.5);
-      const needsPassport = countryId !== state.country && !state.documents.passport;
-      grid.append(card(`${c.name}, ${country.name}`, `Возможности ${c.opportunity}, образование ${c.education}, безопасность ${c.safety}.`, active ? "Вы здесь." : `${needsPassport ? "Нужен паспорт. " : ""}Переезд: ${fmt(cost)}.`, button(active ? "Текущий город" : "Переехать", () => moveTo(countryId, cityId), {
-        disabled: active || state.age < 18 || state.personalMoney < cost || state.event || needsPassport,
-        className: "primary",
-      })));
+  const moves = section("Переезд", "После 18 лет можно переехать кнопкой, если хватает денег на старт. Используйте регион и поиск, чтобы быстро найти город.");
+
+  // Region + search controls operate on a local filter and rebuild only the list.
+  const regionNames = {};
+  Object.values(countries).forEach((item) => {
+    if (item.region) regionNames[item.region] = true;
+  });
+  const regionEntries = [["all", "Все регионы"], ...Object.keys(regionNames).sort().map((r) => [r, r])];
+  const region = selectInput("worldRegion", regionEntries);
+  const search = textInput("worldSearch", "Поиск по стране или городу");
+
+  const controls = document.createElement("div");
+  controls.className = "creator-grid";
+  controls.append(field("Регион", region), field("Поиск", search));
+  moves.append(controls);
+
+  const list = document.createElement("div");
+  const MAX_RESULTS = 60;
+
+  const buildList = () => {
+    list.replaceChildren();
+    const query = search.value.trim().toLowerCase();
+    const regionFilter = region.value;
+    let shown = 0;
+    let matched = 0;
+    for (const [countryId, country] of Object.entries(countries)) {
+      if (regionFilter !== "all" && country.region !== regionFilter) continue;
+      const cityEntries = Object.entries(country.cities).filter(([, c]) => {
+        if (!query) return true;
+        return c.name.toLowerCase().includes(query) || country.name.toLowerCase().includes(query);
+      });
+      if (!cityEntries.length) continue;
+      matched += cityEntries.length;
+
+      const group = document.createElement("div");
+      group.className = "world-group";
+      const heading = document.createElement("h3");
+      heading.className = "world-group-title";
+      heading.textContent = `${country.name} · ${country.region || "—"}`;
+      group.append(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (const [cityId, c] of cityEntries) {
+        if (shown >= MAX_RESULTS) break;
+        shown += 1;
+        const active = countryId === state.country && cityId === state.city;
+        const cost = Math.floor(c.housing * 1.5);
+        const needsPassport = countryId !== state.country && !state.documents.passport;
+        grid.append(card(`${c.name}, ${country.name}`, `Возможности ${c.opportunity}, образование ${c.education}, безопасность ${c.safety}.`, active ? "Вы здесь." : `${needsPassport ? "Нужен паспорт. " : ""}Переезд: ${fmt(cost)}.`, button(active ? "Текущий город" : "Переехать", () => moveTo(countryId, cityId), {
+          disabled: active || state.age < 18 || state.personalMoney < cost || state.event || needsPassport,
+          className: "primary",
+        })));
+      }
+      group.append(grid);
+      list.append(group);
+      if (shown >= MAX_RESULTS) break;
     }
-  }
-  moves.append(grid);
+    if (!matched) {
+      const empty = document.createElement("p");
+      empty.className = "mini";
+      empty.textContent = "Ничего не найдено. Измените регион или запрос.";
+      list.append(empty);
+    } else if (shown < matched) {
+      const more = document.createElement("p");
+      more.className = "mini";
+      more.textContent = `Показаны первые ${shown} из ${matched}. Уточните поиск.`;
+      list.append(more);
+    }
+  };
+
+  region.addEventListener("change", buildList);
+  search.addEventListener("input", buildList);
+  buildList();
+
+  moves.append(list);
   root.append(moves);
   return root;
 }

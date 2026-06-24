@@ -40,6 +40,49 @@
     if (!isUnlocked(state)) state.adultStats = null;
   }
 
+  // Push core relationship deltas onto the backing partner. Prefers the NPC model
+  // (relationshipEngine) so syncLegacy keeps state.relationship consistent; falls back
+  // to the legacy relationship object used in lightweight tests.
+  function syncPartner(state, deltas = {}) {
+    const map = { romance: deltas.romance, trust: deltas.trust, conflict: deltas.conflict, bond: deltas.intimacy };
+    const clean = Object.fromEntries(Object.entries(map).filter(([, v]) => typeof v === "number" && v !== 0));
+    if (deltas.intimacy) clean.bond = Math.round(deltas.intimacy / 2);
+    if (!Object.keys(clean).length) return;
+    const npc = window.GameRelationshipEngine?.activePartner?.(state);
+    if (npc && window.GameRelationshipEngine?.changeNpc) {
+      window.GameRelationshipEngine.changeNpc(npc, clean);
+      window.GameRelationshipEngine.syncLegacy(state);
+      return;
+    }
+    if (state.relationship) {
+      for (const [key, amount] of Object.entries(clean)) {
+        state.relationship[key] = clamp((state.relationship[key] || 0) + amount, 0, 100);
+      }
+    }
+  }
+
+  // Abstract, non-graphic pregnancy risk. Applies only to unlocked adult relationships.
+  // Higher pregnancyRisk and undiscussed contraception raise the chance.
+  function pregnancyChance(state) {
+    if (!isUnlocked(state)) return 0;
+    const stats = ensureAdultStats(state);
+    if (!stats) return 0;
+    const risk = clamp(stats.pregnancyRisk || 0, 0, 100) / 100;
+    const protection = stats.contraceptionDiscussed ? 0.35 : 1;
+    return clamp(risk * protection, 0, 1);
+  }
+
+  function maybePregnancy(state, rng = Math.random) {
+    if (!isUnlocked(state)) return false;
+    if (state.expectingChild) return false;
+    if (rng() < pregnancyChance(state)) {
+      state.expectingChild = true;
+      if (window.GameState?.addLog) window.GameState.addLog("В отношениях ожидается прибавление — пара готовится стать родителями.");
+      return true;
+    }
+    return false;
+  }
+
   function getActions(state) {
     if (!isUnlocked(state)) return [];
     const list = (window.GameData && window.GameData.adultRelationshipActions) || [];
@@ -67,13 +110,8 @@
     for (const [key, amount] of Object.entries(action.effects || {})) {
       stats[key] = clamp((stats[key] || 0) + amount, 0, 100);
     }
-    // mirror core romance/trust/conflict onto the relationship object
-    if (state.relationship) {
-      if (action.effects?.romance) state.relationship.romance = clamp((state.relationship.romance || 0) + action.effects.romance, 0, 100);
-      if (action.effects?.trust) state.relationship.trust = clamp((state.relationship.trust || 0) + action.effects.trust, 0, 100);
-      if (action.effects?.conflict) state.relationship.conflict = clamp((state.relationship.conflict || 0) + action.effects.conflict, 0, 100);
-      if (action.effects?.intimacy) state.relationship.bond = clamp((state.relationship.bond || 0) + Math.round(action.effects.intimacy / 2), 0, 100);
-    }
+    // mirror core romance/trust/conflict/intimacy onto the backing partner (NPC or legacy)
+    syncPartner(state, action.effects || {});
     if (action.stateEffects && window.GameEventEffects?.applyEffects) {
       window.GameEventEffects.applyEffects(state, action.stateEffects);
     }
@@ -94,6 +132,9 @@
     isUnlocked,
     ensureAdultStats,
     clearIfLocked,
+    syncPartner,
+    pregnancyChance,
+    maybePregnancy,
     getActions,
     performAction,
     describe,

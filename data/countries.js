@@ -407,7 +407,7 @@ const countries = {
     currency: "AED",
     region: "middle_east",
     developmentLevel: 86, healthcareLevel: 84, educationLevel: 78, safety: 90, opportunity: 86, corruption: 30,
-    costMultiplier: 1.5, salaryMultiplier: 1.7, taxProfile: "low", migrationDifficulty: 50,
+    costMultiplier: 1.5, salaryMultiplier: 1.7, taxProfile: "no_income_tax", migrationDifficulty: 50,
     culturalProfile: "роскошь, амбиции, мультикультура",
     romanticCultureProfile: "сдержанность и традиции",
     familyCultureProfile: "крепкие традиционные семьи",

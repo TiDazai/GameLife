@@ -1,10 +1,20 @@
 (() => {
+  // Legacy per-country override (kept for old saves and fine-tuning specific countries).
   const taxRates = {
     ru: { income: 0.13, penalty: 0.06 },
     de: { income: 0.24, penalty: 0.05 },
     jp: { income: 0.19, penalty: 0.05 },
     us: { income: 0.22, penalty: 0.07 },
     se: { income: 0.27, penalty: 0.04 },
+  };
+
+  // Generic tax profiles referenced by GameData.countries[*].taxProfile.
+  const taxProfiles = {
+    no_income_tax: { income: 0.0, penalty: 0.0 },
+    low: { income: 0.1, penalty: 0.05 },
+    medium: { income: 0.18, penalty: 0.06 },
+    high: { income: 0.28, penalty: 0.05 },
+    very_high: { income: 0.36, penalty: 0.04 },
   };
 
   const loanTypes = {
@@ -40,5 +50,5 @@
     lifestyleMultiplierFloor: 0.7,
   };
 
-  window.GameData = { ...(window.GameData || {}), taxRates, loanTypes, assetRules, realEstateTypes, expenseRules };
+  window.GameData = { ...(window.GameData || {}), taxRates, taxProfiles, loanTypes, assetRules, realEstateTypes, expenseRules };
 })();

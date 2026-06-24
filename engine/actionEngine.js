@@ -104,6 +104,15 @@
     let failed = false;
 
     const baseEffects = flattenEffects(action.effects);
+    // Standard: cost.money is the price of the action. Drop a duplicate money effect
+    // that merely mirrors the cost (effects.money === -cost.money) to avoid double charge.
+    // A differing effects.money (e.g. a relocation bonus) is kept as extra income/penalty.
+    if (moneyCost > 0 && Number(baseEffects.money) === -moneyCost) {
+      delete baseEffects.money;
+    }
+    // Top-level flags/removeFlags are applied alongside effects (eventEffects handles them).
+    if (Array.isArray(action.flags) && action.flags.length) baseEffects.flags = action.flags;
+    if (Array.isArray(action.removeFlags) && action.removeFlags.length) baseEffects.removeFlags = action.removeFlags;
     Effects()?.applyEffects?.(state, scaleEffects(baseEffects, efficiency), rng);
 
     if (action.risk && typeof action.risk.chance === "number" && rng() < action.risk.chance) {

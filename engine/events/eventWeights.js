@@ -25,7 +25,8 @@
   }
 
   function eventWeight(state, event) {
-    let weight = Number(event.baseWeight) || 0;
+    const declared = event.baseWeight ?? event.weight;
+    let weight = Number(declared) || 0;
     for (const modifier of event.weightModifiers || []) {
       if (!modifierApplies(state, modifier)) continue;
       if (modifier.add !== undefined) weight += Number(modifier.add) || 0;

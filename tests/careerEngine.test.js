@@ -162,6 +162,13 @@ test("normalizeState migrates old education and career fields", () => {
   assert.equal(migrated.career.experience, 5);
 });
 
+test("country salary factor reads salaryMultiplier with legacy fallback", () => {
+  assert.equal(GameCareerEngine.countrySalaryFactor({ country: "us" }), GameData.countries.us.salaryMultiplier);
+  assert.equal(GameCareerEngine.countrySalaryFactor({ country: "in" }), GameData.countries.in.salaryMultiplier);
+  assert(GameCareerEngine.countrySalaryFactor({ country: "us" }) > GameCareerEngine.countrySalaryFactor({ country: "in" }));
+  assert.equal(GameCareerEngine.countrySalaryFactor({ country: "unknown_country" }), 1);
+});
+
 test("career catalog has at least 60 jobs with required fields", () => {
   assert(GameCareerEngine.jobs().length >= 60);
   GameCareerEngine.jobs().forEach((job) => {

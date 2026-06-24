@@ -85,6 +85,7 @@ test("applyEffects clamps bounded stats and changes money safely", () => {
   const st = fresh();
   st.health = 98;
   st.personalMoney = 50;
+  st.skills.finance = 0; // pin baseline: starting skills are randomized at creation
   GameEventEngine.applyEffects(st, { health: 10, stress: -50, money: -100, finance: 4 });
   assert.equal(st.health, 100);
   assert.equal(st.stress, 0);
@@ -126,6 +127,16 @@ test("risk effects apply with fixed rng", () => {
   GameEventEngine.applyEventOption(st, "teen_bad_company", "go", () => 0.1);
   assert.equal(st.criminalRecord, 1);
   assert(st.reputation < 0 || st.stress > 4);
+});
+
+test("event weight supports weight as fallback for baseWeight and can be picked", () => {
+  const st = fresh();
+  const onlyWeight = { id: "wonly", category: "adult", weight: 7 };
+  const bothFields = { id: "wboth", category: "adult", baseWeight: 3, weight: 99 };
+  assert.equal(GameEventEngine.eventWeight(st, onlyWeight), 7);
+  assert.equal(GameEventEngine.eventWeight(st, bothFields), 3); // baseWeight wins over weight
+  const picked = GameEventWeights.pickWeighted([onlyWeight], (event) => GameEventEngine.eventWeight(st, event), () => 0.5);
+  assert.equal(picked?.id, "wonly");
 });
 
 test("active event saves and loads", () => {

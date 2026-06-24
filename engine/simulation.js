@@ -256,6 +256,7 @@ function endYear() {
   window.GameStoryArcs?.tick?.(state, Math.random);
   window.GameLifeGoals?.evaluate?.(state);
   window.GameAdultRelationships?.clearIfLocked?.(state);
+  if (window.GameAdultRelationships?.maybePregnancy?.(state, Math.random)) notes.push("в отношениях ожидается ребёнок");
 
   ageFamily();
   naturalChanges();

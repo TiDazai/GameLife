@@ -6,6 +6,7 @@
     if (state.skills && stat in state.skills) return Number(state.skills[stat]) || 0;
     if (state.assets && stat in state.assets) return Number(state.assets[stat]) || 0;
     if (state.healthProfile && stat in state.healthProfile) return Number(state.healthProfile[stat]) || 0;
+    if (state.adultStats && stat in state.adultStats) return Number(state.adultStats[stat]) || 0;
     if (stat === "money") return Number(state.personalMoney) || 0;
     if (stat === "children") return Array.isArray(state.children) ? state.children.length : 0;
     if (stat === "healthConditions") return window.GameHealthEngine?.allStateConditions?.(state).length || 0;
