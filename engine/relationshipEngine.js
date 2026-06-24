@@ -76,6 +76,12 @@
       }
     }
     npc.job = npc.occupation;
+    // keep the grouped relationshipStats snapshot in sync with legacy fields
+    if (npc.relationshipStats && typeof npc.relationshipStats === "object") {
+      ["bond", "trust", "conflict", "romance", "respect"].forEach((key) => {
+        if (key in npc) npc.relationshipStats[key] = npc[key];
+      });
+    }
     return npc;
   }
 
