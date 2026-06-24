@@ -22,6 +22,7 @@ global.localStorage = {
   "data/careerEducation.js",
   "data/economy.js",
   "data/health.js",
+  "data/health/conditionsDetailed.js",
   "data/legal.js",
   "data/places.js",
   "data/education/specialties.js",
