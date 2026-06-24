@@ -382,6 +382,7 @@ function normalizeState(st) {
   merged.pregnancy = st.pregnancy && typeof st.pregnancy === "object" ? st.pregnancy : null;
   if (window.GameEducationPath?.normalize) window.GameEducationPath.normalize(merged);
   if (window.GameWorkplace?.normalize) window.GameWorkplace.normalize(merged);
+  if (window.GameNightlife?.normalize) window.GameNightlife.normalize(merged);
   if (window.GameAdultWork?.normalize) window.GameAdultWork.normalize(merged);
   if (window.GamePregnancy?.normalize) window.GamePregnancy.normalize(merged);
   if (window.GameRelationshipEngine?.normalizeNpcs) window.GameRelationshipEngine.normalizeNpcs(merged);
