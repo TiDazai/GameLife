@@ -250,6 +250,16 @@ function endYear() {
   const economySummary = window.GameEconomyEngine?.resolveEconomyYear?.(state, Math.random);
   if (economySummary) notes.push(`финансы: доход ${fmt(economySummary.income)}, расходы ${fmt(economySummary.expenses)}`);
 
+  // deepened object-model yearly hooks (all guarded, safe for old saves)
+  if (window.GameEducationPath?.isEnrolled?.(state)) {
+    const eduResult = window.GameEducationPath.studyYear(state, window.GameRandom);
+    if (eduResult?.status === "graduated") notes.push("учёба: получен диплом");
+  }
+  const adultWorkSummary = window.GameAdultWork?.resolveYear?.(state, Math.random);
+  if (adultWorkSummary) notes.push(`взрослая ветка: +${fmt(adultWorkSummary.income)}`);
+  const pregnancyNote = window.GamePregnancy?.tick?.(state, Math.random);
+  if (pregnancyNote) notes.push(pregnancyNote);
+
   const fatigueNotes = window.GameActionLoad?.applyYearlyFatigueConsequences?.(state) || [];
   fatigueNotes.forEach((entry) => notes.push(entry));
   window.GameWorldEvents?.tick?.(state, Math.random);

@@ -126,7 +126,7 @@
       const cityInfo = GS()?.cityData?.(state) || {};
       const legalChance = risk.legal + Math.max(0, (60 - (cityInfo.safety || 60)) / 6);
       if (rng() * 100 < legalChance && window.GameLegalEngine?.addFine) {
-        window.GameLegalEngine.addFine(state, { reason: "Инцидент в ночном заведении", amount: 60 + Math.floor(rng() * 120) });
+        window.GameLegalEngine.addFine(state, 60 + Math.floor(rng() * 120), "Инцидент в ночном заведении", { tags: ["nightlife"] });
       }
     }
 
