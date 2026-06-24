@@ -138,6 +138,13 @@ const baseState = {
   worldEvents: [],
   worldEventHistory: [],
   adultStats: null,
+  // --- deepened object model (NPC-first world) ---
+  places: [],
+  educationPath: null,
+  workplace: null,
+  nightlife: null,
+  adultWork: null,
+  pregnancy: null,
 };
 
 const state = createNewLife();
@@ -185,6 +192,7 @@ function createNewLife(options = {}) {
   if (window.GameEconomyEngine?.normalizeEconomyState) window.GameEconomyEngine.normalizeEconomyState(st, st);
   if (window.GameHealthEngine?.normalizeHealthState) window.GameHealthEngine.normalizeHealthState(st, st);
   if (window.GameLegalEngine?.normalizeLegalState) window.GameLegalEngine.normalizeLegalState(st, st);
+  if (window.GamePlaces?.ensureCityPlaces) window.GamePlaces.ensureCityPlaces(st);
   st.achievements = window.GameLifeSummaryEngine?.readAchievements?.() || [];
   const birthVerb = playerGender === "female" ? "родилась" : "родился";
   st.log = [
@@ -364,6 +372,18 @@ function normalizeState(st) {
   merged.worldEvents = Array.isArray(st.worldEvents) ? st.worldEvents : [];
   merged.worldEventHistory = Array.isArray(st.worldEventHistory) ? st.worldEventHistory : [];
   merged.adultStats = st.adultStats && typeof st.adultStats === "object" ? st.adultStats : null;
+  // --- deepened object model normalization (guarded; safe for old saves) ---
+  merged.places = Array.isArray(st.places) ? st.places : [];
+  if (window.GamePlaces?.normalizePlaces) window.GamePlaces.normalizePlaces(merged);
+  merged.educationPath = st.educationPath && typeof st.educationPath === "object" ? st.educationPath : null;
+  merged.workplace = st.workplace && typeof st.workplace === "object" ? st.workplace : null;
+  merged.nightlife = st.nightlife && typeof st.nightlife === "object" ? st.nightlife : null;
+  merged.adultWork = st.adultWork && typeof st.adultWork === "object" ? st.adultWork : null;
+  merged.pregnancy = st.pregnancy && typeof st.pregnancy === "object" ? st.pregnancy : null;
+  if (window.GameEducationPath?.normalize) window.GameEducationPath.normalize(merged);
+  if (window.GameWorkplace?.normalize) window.GameWorkplace.normalize(merged);
+  if (window.GameAdultWork?.normalize) window.GameAdultWork.normalize(merged);
+  if (window.GamePregnancy?.normalize) window.GamePregnancy.normalize(merged);
   if (window.GameRelationshipEngine?.normalizeNpcs) window.GameRelationshipEngine.normalizeNpcs(merged);
   else syncLegacyFromNpcs(merged);
   return merged;
