@@ -104,9 +104,10 @@ test("action database loaded with 150+ unique actions", () => {
   assert.equal(new Set(ids).size, ids.length, "duplicate action ids");
 });
 
-test("new life gets goal, talents, hidden modifiers", () => {
+test("new life gets talents and hidden modifiers (no auto-assigned goal)", () => {
   const st = fresh({ lifeGoal: "wealth" });
-  assert.equal(st.lifeGoal, "wealth");
+  // life goals are a dormant legacy feature: not auto-assigned anymore
+  assert.equal(st.lifeGoal, null);
   assert(Array.isArray(st.talents));
   assert(Object.keys(st.hiddenModifiers).length > 0);
   assert.equal(st.version, 9);
@@ -159,8 +160,11 @@ test("adult relationships locked under 18 and require adult partner", () => {
   assert(st.adultStats.trust >= (before || 0));
 });
 
-test("life goal progress evaluates milestones", () => {
-  const st = fresh({ lifeGoal: "wealth" });
+test("legacy life goal engine still evaluates milestones when assigned manually", () => {
+  // The engine is kept for backward compatibility even though it is no longer
+  // auto-assigned or shown in the UI.
+  const st = fresh();
+  GameLifeGoals.assignGoal(st, "wealth");
   st.personalMoney = 6000;
   GameLifeGoals.evaluate(st);
   const desc = GameLifeGoals.describe(st);
@@ -315,7 +319,8 @@ test("teen social actions stay non-explicit and never touch adultStats", () => {
 });
 
 test("save/load round trip preserves new fields at version 9", () => {
-  const st = fresh({ lifeGoal: "career" });
+  const st = fresh();
+  st.lifeGoal = "career"; // legacy field still round-trips even though dormant
   st.actionFatigue = 33;
   st.worldEvents = [{ id: "recession", title: "Кризис", remaining: 2 }];
   GameStorage.saveGame();

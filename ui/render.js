@@ -207,8 +207,75 @@ function selectInput(id, entries) {
 // with a live preview; "Случайная жизнь" jumps straight into a random life.
 let creatorStep = 0;
 
+// True only when there is a saved life to come back to.
+function hasResumableSave() {
+  return Boolean(window.GameStorage?.hasAnySave?.());
+}
+
+// Starting a fresh life would replace the current autosave, so confirm first.
+function confirmNewLifeThen(fn) {
+  if (hasResumableSave()) {
+    const ok = typeof window.confirm === "function"
+      ? window.confirm("Начать новую жизнь? Текущее сохранение будет заменено.")
+      : true;
+    if (!ok) return;
+  }
+  fn();
+}
+
+// Start screen shown on top of the creator when a save exists: Продолжить /
+// Загрузить слот / Удалить. "Новая жизнь" is the creation form right below it.
+function renderStartScreen() {
+  if (!hasResumableSave()) return null;
+  const node = section("Продолжить игру", "У вас есть сохранённая жизнь. Продолжите её или начните новую ниже.");
+
+  const actions = document.createElement("div");
+  actions.className = "creator-quick";
+  actions.append(
+    button("Продолжить жизнь", () => window.GameStorage.loadCurrentGame(), { className: "primary" }),
+    button("Удалить сохранение", () => {
+      const ok = typeof window.confirm === "function"
+        ? window.confirm("Удалить все сохранения без возможности восстановления?")
+        : true;
+      if (!ok) return;
+      window.GameStorage.deleteAllSaves();
+      render();
+    })
+  );
+  node.append(actions);
+
+  const slots = window.GameStorage?.listSaveSlots?.() || [];
+  if (slots.length) {
+    const list = document.createElement("div");
+    list.className = "content";
+    slots.forEach((slot) => {
+      const row = document.createElement("div");
+      row.className = "person-card";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = slot.name;
+      const when = document.createElement("small");
+      when.textContent = slot.updatedAt ? new Date(slot.updatedAt).toLocaleString("ru-RU") : "";
+      info.append(title, document.createElement("br"), when);
+      const load = button("Загрузить", () => window.GameStorage.loadSaveSlot(slot.id), { className: "primary" });
+      const del = button("Удалить", () => {
+        window.GameStorage.deleteSaveSlot(slot.id);
+        render();
+      });
+      const controls = document.createElement("div");
+      controls.append(load, del);
+      row.append(info, controls);
+      list.append(row);
+    });
+    node.append(list);
+  }
+  return node;
+}
+
 function renderCreator() {
   const root = document.createDocumentFragment();
+  const startScreen = renderStartScreen();
+  if (startScreen) root.append(startScreen);
 
   // ---- shared inputs (kept alive across steps; collectCreatorOptions reads ids)
   const firstName = textInput("creatorFirstName", "Например: Анна");
@@ -276,12 +343,7 @@ function renderCreator() {
   [firstName, lastName, gender, city].forEach((el) => el.addEventListener("change", () => updatePreview()));
   updateNamePlaceholders();
 
-  // ---- goal + social class + traits inputs
-  const goalCatalog = window.GameLifeGoals?.catalog?.() || [];
-  const goalEntries = [["random", "Случайная цель"], ...goalCatalog.map((g) => [g.id, g.title])];
-  const goal = selectInput("creatorGoal", goalEntries);
-  goal.addEventListener("change", () => updatePreview());
-
+  // ---- social class + traits inputs (life goals removed; legacy feature)
   const classGrid = document.createElement("div");
   classGrid.className = "grid choice-grid";
   Object.entries(socialClasses).forEach(([id, item]) => {
@@ -341,11 +403,6 @@ function renderCreator() {
     } },
     { title: "Семья и среда", hint: "Социальный класс определяет бюджет, район и доступ к образованию.", build: () => classGrid },
     { title: "Характер", hint: "Базовые черты влияют на то, как складывается жизнь.", build: () => traitGrid },
-    { title: "Цель жизни", hint: "Главная мечта задаёт вехи и влияет на итоговую оценку.", build: () => {
-      const wrap = document.createElement("div");
-      wrap.append(field("Цель", goal));
-      return wrap;
-    } },
   ];
 
   // ---- preview card (live summary of current choices)
@@ -356,7 +413,6 @@ function renderCreator() {
     const cityNm = countries[country.value]?.cities?.[city.value]?.name || "";
     const clsEl = classGrid.querySelector('input[name="creatorSocialClass"]:checked');
     const clsName = clsEl ? socialClasses[clsEl.value]?.name : "";
-    const goalName = goal.value === "random" ? "Случайная цель" : (goalCatalog.find((g) => g.id === goal.value)?.title || "—");
     const fn = firstName.value || firstName.placeholder.replace("Например: ", "");
     const ln = lastName.value || lastName.placeholder.replace("Например: ", "");
     const genderName = characterCreation.genders[gender.value] || gender.value;
@@ -366,7 +422,6 @@ function renderCreator() {
       ["Пол", genderName],
       ["Родина", `${cityNm ? cityNm + ", " : ""}${cName}`],
       ["Среда", clsName],
-      ["Цель", goalName],
     ];
     pairs.forEach(([label, val]) => {
       const row = document.createElement("div");
@@ -408,12 +463,11 @@ function renderCreator() {
       r.value = String(Number(r.min) + Math.floor(Math.random() * (Number(r.max) - Number(r.min) + 1)));
       r.dispatchEvent(new Event("input"));
     });
-    if (goalCatalog.length) goal.value = goalCatalog[Math.floor(Math.random() * goalCatalog.length)].id;
     updatePreview();
   };
 
   // ---- wizard shell -------------------------------------------------------
-  const shell = section("Создание персонажа", "Пять коротких шагов — или быстрый старт со случайной судьбой.");
+  const shell = section("Создание персонажа", "Несколько коротких шагов — или быстрый старт со случайной судьбой.");
 
   const stepper = document.createElement("div");
   stepper.className = "creator-stepper";
@@ -463,7 +517,7 @@ function renderCreator() {
     if (creatorStep < steps.length - 1) {
       nav.append(button("Далее", () => showStep(creatorStep + 1), { className: "primary" }));
     } else {
-      nav.append(button("Начать жизнь", () => window.GameStorage.startGame(collectCreatorOptions()), { className: "primary" }));
+      nav.append(button("Начать жизнь", () => confirmNewLifeThen(() => window.GameStorage.startGame(collectCreatorOptions())), { className: "primary" }));
     }
   };
 
@@ -471,7 +525,7 @@ function renderCreator() {
   quick.className = "creator-quick";
   quick.append(
     button("Быстрый старт", () => randomize(), { className: "money" }),
-    button("Случайная жизнь", () => window.GameStorage.startRandomGame())
+    button("Случайная жизнь", () => confirmNewLifeThen(() => window.GameStorage.startRandomGame()))
   );
 
   shell.append(quick, stepper, panel, nav);
@@ -498,10 +552,6 @@ function collectCreatorOptions() {
     country: document.getElementById("creatorCountry").value,
     city: document.getElementById("creatorCity").value,
     socialClass: selectedClass?.value || characterCreation.defaultSocialClass,
-    lifeGoal: (() => {
-      const value = document.getElementById("creatorGoal")?.value;
-      return value && value !== "random" ? value : undefined;
-    })(),
     traits,
   };
 }
@@ -945,13 +995,11 @@ function renderLifeHero() {
   name.textContent = `${state.firstName} ${state.lastName}`.trim() || "Без имени";
   const meta = document.createElement("div");
   meta.className = "hero-meta";
-  const goal = window.GameLifeGoals?.describe?.(state);
   meta.textContent = [
     ageText(state.age),
     `${cityName()}, ${countryName()}`,
     stageName(),
     socialClassData().name,
-    goal ? `Цель: ${goal.title}` : null,
   ].filter(Boolean).join(" · ");
   id.append(name, meta);
   top.append(avatar, id);
@@ -984,8 +1032,6 @@ function renderLifeDashboard() {
     progressBar("Стресс", state.stress, 100, { tone: state.stress >= 60 ? "bad" : "warn" }),
     progressBar("Усталость года", state.actionFatigue || 0, 100, { tone: "warn" }),
   );
-  const goal = window.GameLifeGoals?.describe?.(state);
-  if (goal) bars.append(progressBar(`Цель: ${goal.title}`, goal.progress, 100, { tone: "romance", suffix: "%" }));
   node.append(bars);
   return node;
 }
@@ -1047,8 +1093,6 @@ function renderLife() {
   timeline.append(line);
   root.append(timeline);
 
-  const goalNode = renderLifeGoal();
-  if (goalNode) root.append(goalNode);
   const worldNode = renderWorldEvents();
   if (worldNode) root.append(worldNode);
   const arcsNode = renderStoryArcs();
@@ -1181,10 +1225,6 @@ function getRecommendedActions(state) {
   } else if (!hasPartner && state.age >= 16) {
     add(find((a) => a.category === "social"), "потому что стоит укрепить отношения");
   }
-  const goal = window.GameLifeGoals?.describe?.(state);
-  if (goal && !goal.completed && /карьер|финанс|бизнес|капитал|богат|professional|wealth|career|money/i.test(`${goal.id} ${goal.title}`)) {
-    add(find((a) => a.category === "career" || a.category === "money"), `потому что цель: ${String(goal.title).toLowerCase()}`);
-  }
   const arc = (window.GameStoryArcs?.describe?.(state) || []).find((a) => a.status === "active");
   if (arc) {
     add(find((a) => a.category === "risk" || a.category === "social" || a.category === "creative"), `потому что активная история: ${String(arc.title).toLowerCase()}`);
@@ -1225,8 +1265,6 @@ function getLifeAlerts(state) {
   if (closeNeglected) alerts.push({ text: "Отношения требуют внимания", kind: "risk" });
   const arc = (window.GameStoryArcs?.describe?.(state) || []).find((a) => a.status === "active");
   if (arc) alerts.push({ text: `Активная история: ${arc.title}`, kind: "important" });
-  const goal = window.GameLifeGoals?.describe?.(state);
-  if (goal && !goal.completed) alerts.push({ text: `Цель: ${goal.title} — ${goal.progress}%`, kind: "" });
   return alerts.slice(0, 5);
 }
 

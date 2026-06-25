@@ -142,8 +142,8 @@ test("creator is a stepped wizard with quick start + live preview", () => {
   assert(render.includes("Быстрый старт"));
   assert(render.includes("Случайная жизнь"));
   assert(render.includes("creator-preview"));
-  // five named steps
-  ["Кто вы", "Где вы родились", "Семья и среда", "Характер", "Цель жизни"].forEach((s) => {
+  // named steps (life-goal step removed as a legacy feature)
+  ["Кто вы", "Где вы родились", "Семья и среда", "Характер"].forEach((s) => {
     assert(render.includes(s), `missing creator step: ${s}`);
   });
   assert(css.includes(".creator-stepper"));
@@ -206,6 +206,26 @@ test("people roster supports relation-group filters", () => {
   assert(render.includes("peopleFilter"));
   assert(render.includes("relationGroups"));
   assert(render.includes("filterChips"));
+});
+
+test("life goals are removed from the main UI (legacy feature)", () => {
+  // the dedicated goal block is no longer appended on the Life screen
+  assert(!render.includes("const goalNode = renderLifeGoal()"));
+  // hero / dashboard / alerts / recommendations no longer surface a goal
+  assert(!render.includes("`Цель: ${goal.title}`"));
+  assert(!render.includes('goal ? `Цель: ${goal.title}` : null'));
+  // creator no longer has a "Цель жизни" step or goal input
+  assert(!render.includes('selectInput("creatorGoal"'));
+});
+
+test("start screen lets the player continue, load or delete a save", () => {
+  assert(render.includes("function renderStartScreen"));
+  assert(render.includes("Продолжить жизнь"));
+  assert(render.includes("loadCurrentGame"));
+  assert(render.includes("loadSaveSlot"));
+  assert(render.includes("deleteAllSaves"));
+  // starting a fresh life asks for confirmation when a save exists
+  assert(render.includes("function confirmNewLifeThen"));
 });
 
 test("activities tab is a single action surface, not a duplicate grid", () => {

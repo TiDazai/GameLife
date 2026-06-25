@@ -187,7 +187,8 @@ function createNewLife(options = {}) {
   st.skills.empathy = Math.floor((st.traits.kindness + livingParentCountFor(st) * 8) / 12);
   st.skills.logic = Math.floor(st.traits.curiosity / 14);
   applyBirthProfile(st, options);
-  if (window.GameLifeGoals?.assignGoal) window.GameLifeGoals.assignGoal(st, options.lifeGoal);
+  // Life goals are a dormant legacy feature: no longer auto-assigned on birth.
+  // The engine (window.GameLifeGoals) is kept for backward compatibility only.
   if (window.GameCareerEngine?.normalizeCareerState) window.GameCareerEngine.normalizeCareerState(st, st);
   if (window.GameEconomyEngine?.normalizeEconomyState) window.GameEconomyEngine.normalizeEconomyState(st, st);
   if (window.GameHealthEngine?.normalizeHealthState) window.GameHealthEngine.normalizeHealthState(st, st);
