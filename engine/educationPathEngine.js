@@ -114,10 +114,10 @@
         metAtPlaceId: institutionId,
         metYear: state.age || 0,
       });
-      rel().addNpc(state, npc);
-      rel().addNpcHistory?.(npc, "Преподаватель.");
-      if (institutionId) window.GamePlaces?.attachNpc?.(state, institutionId, npc.id);
-      path.teacherIds.push(npc.id);
+      const stored = rel().addNpc(state, npc);
+      rel().addNpcHistory?.(stored, "Преподаватель.");
+      if (institutionId) window.GamePlaces?.attachNpc?.(state, institutionId, stored.id);
+      path.teacherIds.push(stored.id);
     }
     for (let i = 0; i < classmateCount; i += 1) {
       const npc = npcF().createClassmateNpc(state, {
@@ -127,10 +127,10 @@
         metAtPlaceId: institutionId,
         metYear: state.age || 0,
       });
-      rel().addNpc(state, npc);
-      rel().addNpcHistory?.(npc, "Учимся вместе.");
-      if (institutionId) window.GamePlaces?.attachNpc?.(state, institutionId, npc.id);
-      path.classmateIds.push(npc.id);
+      const stored = rel().addNpc(state, npc);
+      rel().addNpcHistory?.(stored, "Учимся вместе.");
+      if (institutionId) window.GamePlaces?.attachNpc?.(state, institutionId, stored.id);
+      path.classmateIds.push(stored.id);
     }
   }
 

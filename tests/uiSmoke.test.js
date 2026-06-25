@@ -208,6 +208,23 @@ test("people roster supports relation-group filters", () => {
   assert(render.includes("filterChips"));
 });
 
+test("people tab is NPC-first with profiles and where-met context", () => {
+  // Every person is reachable as a concrete NPC profile.
+  assert(render.includes("function renderNpcProfile"));
+  assert(render.includes("selectedNpcId"));
+  assert(render.includes("Люди в вашей жизни"));
+  assert(render.includes("getNpcContext"));
+  assert(render.includes("Знакомы"));
+  // full relation-group filter set
+  ["Семья", "Друзья", "Романтика", "Бывшие", "Работа", "Учёба", "Услуги", "Прочие"].forEach((label) => {
+    assert(render.includes(label), `missing people filter: ${label}`);
+  });
+  // profile exposes history + actions + back button
+  assert(render.includes("История отношений"));
+  assert(render.includes("Назад к людям"));
+  assert(css.includes(".npc-profile"));
+});
+
 test("life goals are removed from the main UI (legacy feature)", () => {
   // the dedicated goal block is no longer appended on the Life screen
   assert(!render.includes("const goalNode = renderLifeGoal()"));

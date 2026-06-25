@@ -1416,6 +1416,19 @@ button:disabled {
   line-height: 1.4;
 }
 
+/* NPC profile panel (People tab) */
+.npc-profile .pc-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+.npc-profile .avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1.4rem;
+}
+
 /* person card (relationships) with avatar */
 .person-card {
   border: 1px solid var(--line);

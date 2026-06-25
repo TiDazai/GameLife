@@ -123,10 +123,10 @@
       metAtPlaceId: w.workplaceId,
       metYear: state.age || 0,
     });
-    rel().addNpc(state, boss);
-    rel().addNpcHistory?.(boss, "Мой руководитель на работе.");
-    if (w.workplaceId) window.GamePlaces?.attachNpc?.(state, w.workplaceId, boss.id);
-    w.bossId = boss.id;
+    const storedBoss = rel().addNpc(state, boss);
+    rel().addNpcHistory?.(storedBoss, "Мой руководитель на работе.");
+    if (w.workplaceId) window.GamePlaces?.attachNpc?.(state, w.workplaceId, storedBoss.id);
+    w.bossId = storedBoss.id;
     // a handful of concrete coworkers
     const count = 2 + rnd().roll(3);
     for (let i = 0; i < count; i += 1) {
@@ -137,10 +137,10 @@
         metAtPlaceId: w.workplaceId,
         metYear: state.age || 0,
       });
-      rel().addNpc(state, npc);
-      rel().addNpcHistory?.(npc, "Коллега по работе.");
-      if (w.workplaceId) window.GamePlaces?.attachNpc?.(state, w.workplaceId, npc.id);
-      w.coworkerIds.push(npc.id);
+      const stored = rel().addNpc(state, npc);
+      rel().addNpcHistory?.(stored, "Коллега по работе.");
+      if (w.workplaceId) window.GamePlaces?.attachNpc?.(state, w.workplaceId, stored.id);
+      w.coworkerIds.push(stored.id);
     }
   }
 

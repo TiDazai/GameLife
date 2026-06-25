@@ -83,12 +83,12 @@
     npc.metContext = "nightlife";
     npc.metAtPlaceId = n.lastVenueId || null;
     npc.metYear = state.age || 0;
-    rel().addNpc(state, npc);
-    rel().addNpcHistory?.(npc, "Познакомились в ночной жизни.");
-    if (n.lastVenueId) window.GamePlaces?.attachNpc?.(state, n.lastVenueId, npc.id);
-    n.encounterIds.push(npc.id);
+    const stored = rel().addNpc(state, npc);
+    rel().addNpcHistory?.(stored, "Познакомились в ночной жизни.");
+    if (n.lastVenueId) window.GamePlaces?.attachNpc?.(state, n.lastVenueId, stored.id);
+    n.encounterIds.push(stored.id);
     n.encounters += 1;
-    return npc;
+    return stored;
   }
 
   function applyJealousy(state, rng, conflictRisk) {

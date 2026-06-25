@@ -2267,13 +2267,18 @@ function renderRelationships() {
   s.append(grid);
   root.append(s);
 
-  const people = (window.GameRelationshipEngine?.list?.(state) || []).filter((npc) => npc.alive && npc.relationType !== "self" && npc.relationType !== "spouse" && npc.relationType !== "partner");
+  const people = (window.GameRelationshipEngine?.list?.(state) || []).filter((npc) => npc.alive && npc.relationType !== "self");
+  // If a person is selected, show their full profile first.
+  const selected = selectedNpcId ? people.find((npc) => npc.id === selectedNpcId) : null;
+  if (selectedNpcId && !selected) selectedNpcId = null;
+  if (selected) root.append(renderNpcProfile(selected));
   if (people.length) {
-    const social = section("Близкие и знакомые", "Каждый человек хранит отдельные доверие, конфликт, уважение и историю.");
+    const social = section("Люди в вашей жизни", "Каждый человек — отдельный NPC со своей историей, доверием, конфликтом и местом знакомства.");
     const groups = window.GameNpcFactory?.relationGroups || {};
     const groupOf = (npc) => Object.keys(groups).find((g) => (groups[g] || []).includes(npc.relationType)) || "other";
-    const present = [...new Set(people.map(groupOf))];
-    const groupLabels = { family: "Семья", friends: "Друзья", romance: "Романтика", exes: "Бывшие", work: "Работа", study: "Учёба", services: "Службы", other: "Прочие" };
+    const groupLabels = { family: "Семья", friends: "Друзья", romance: "Романтика", exes: "Бывшие", work: "Работа", study: "Учёба", services: "Услуги", other: "Прочие" };
+    const order = ["family", "friends", "romance", "exes", "work", "study", "services", "other"];
+    const present = order.filter((g) => people.some((npc) => groupOf(npc) === g));
     const chipEntries = [["all", "Все"], ...present.map((g) => [g, groupLabels[g] || g])];
     const pg = document.createElement("div");
     pg.className = "grid";
@@ -2281,24 +2286,22 @@ function renderRelationships() {
       pg.replaceChildren();
       const filtered = peopleFilter === "all" ? people : people.filter((npc) => groupOf(npc) === peopleFilter);
       filtered.forEach((npc) => {
-        const tone = ["friend", "best_friend"].includes(npc.relationType) ? "good" : npc.relationType === "enemy" ? "bad" : "family";
+        const tone = ["friend", "best_friend"].includes(npc.relationType) ? "good" : ["enemy", "rival"].includes(npc.relationType) ? "bad" : ["partner", "spouse", "crush", "date"].includes(npc.relationType) ? "romance" : "family";
+        const ctx = window.GameSocialWorld?.getNpcContext?.(state, npc);
+        const where = ctx?.label ? `Знакомы ${ctx.label}${ctx.placeName ? ` (${ctx.placeName})` : ""}` : null;
+        const isRomance = ["partner", "spouse", "crush", "date", "hookup_18_plus"].includes(npc.relationType);
         const lines = [
-          npc.occupation || npc.role,
+          `${npc.role}${npc.age != null ? `, ${ageText(npc.age)}` : ""}`,
+          npc.occupation || null,
           `Связь ${npc.bond}/100 · Доверие ${npc.trust}/100`,
-          `Конфликт ${npc.conflict}/100 · Уважение ${npc.respect}/100`,
+          isRomance && (state.age || 0) >= 18 ? `Конфликт ${npc.conflict}/100 · Романтика ${npc.romance}/100` : `Конфликт ${npc.conflict}/100 · Уважение ${npc.respect}/100`,
+          where,
         ];
         const actions = document.createElement("div");
         actions.className = "button-grid two";
         actions.append(
           button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct(), className: "primary" }),
-          button("Поддержать", () => relationshipAction("support", npc.id), { disabled: !canAct() }),
-          button("Помочь деньгами", () => relationshipAction("help_money", npc.id), {
-            disabled: !canAct() || state.personalMoney + state.familyMoney < Math.floor(400 * cityData().cost),
-            className: "money",
-          }),
-          button("Попросить помощь", () => relationshipAction("ask_help", npc.id), {
-            disabled: !canAct() || npc.bond < 38 || npc.trust < 30,
-          })
+          button("Профиль", () => { selectedNpcId = npc.id; render(); })
         );
         pg.append(personCard(`${npc.name} ${npc.lastName || ""}`.trim(), npc.role, lines, actions, { tone }));
       });
@@ -2335,6 +2338,98 @@ function renderRelationships() {
   const adultNode = renderAdultRelationships();
   if (adultNode) root.append(adultNode);
   return root;
+}
+
+// Full profile of a single NPC: who they are, where you met, their stats and
+// the actions you can take with them.
+function renderNpcProfile(npc) {
+  const sec = section("Профиль", "");
+  sec.classList.add("npc-profile");
+  const head = sec.querySelector(".section-head > div");
+  if (head) head.prepend(button("← Назад к людям", () => { selectedNpcId = null; render(); }));
+
+  const ctx = window.GameSocialWorld?.getNpcContext?.(state, npc);
+  const isRomance = ["partner", "spouse", "crush", "date", "hookup_18_plus"].includes(npc.relationType);
+  const adult = (state.age || 0) >= 18 && (npc.age || 0) >= 18;
+
+  const top = document.createElement("div");
+  top.className = "pc-top";
+  const avatar = document.createElement("div");
+  avatar.className = "avatar tone-family";
+  avatar.textContent = (npc.name || "?").trim().charAt(0).toUpperCase() || "?";
+  const id = document.createElement("div");
+  const nm = document.createElement("div");
+  nm.className = "person-name";
+  nm.textContent = `${npc.name} ${npc.lastName || ""}`.trim();
+  const rl = document.createElement("div");
+  rl.className = "person-role";
+  rl.textContent = `${npc.role}${npc.age != null ? `, ${ageText(npc.age)}` : ""}`;
+  id.append(nm, rl);
+  top.append(avatar, id);
+  sec.append(top);
+
+  const tags = [];
+  if (npc.country) tags.push([npc.country.toUpperCase(), ""]);
+  if (npc.city) tags.push([npc.city, ""]);
+  if (ctx?.label) tags.push([`Знакомы ${ctx.label}`, "info"]);
+  if ((npc.tags || []).includes("ex_coworker")) tags.push(["бывший коллега", "warn"]);
+  if (isRomance && adult) tags.push(["18+", "adult"]);
+  if (tags.length) sec.append(badgeRow(tags));
+
+  const lines = document.createElement("div");
+  lines.className = "grid";
+  const facts = [
+    npc.occupation ? `Чем занимается: ${npc.occupation}` : null,
+    ctx?.placeName ? `Где познакомились: ${ctx.placeName}` : null,
+    ctx?.year != null ? `Когда познакомились: в ${ctx.year} ${ctx.year === 1 ? "год" : "лет"}` : null,
+    npc.appearance ? `Внешность: ${[npc.appearance.build, npc.appearance.hair, npc.appearance.vibe].filter(Boolean).join(", ")}` : null,
+    npc.personality ? `Характер: доброта ${npc.personality.kindness}/100 · амбиции ${npc.personality.ambition}/100 · риск ${npc.personality.risk}/100` : null,
+  ].filter(Boolean);
+  facts.forEach((text) => lines.append(card(text, "", "", null)));
+  sec.append(lines);
+
+  const bars = document.createElement("div");
+  bars.className = "grid";
+  bars.append(
+    progressBar("Связь", npc.bond, 100, { tone: "good" }),
+    progressBar("Доверие", npc.trust, 100, { tone: "good" }),
+    progressBar("Конфликт", npc.conflict, 100, { tone: "bad" }),
+    progressBar("Уважение", npc.respect, 100, { tone: "money" }),
+    progressBar("Здоровье", npc.health, 100, { tone: "health" }),
+    progressBar("Психика", npc.mental, 100, { tone: "romance" })
+  );
+  if (isRomance && adult) bars.append(progressBar("Романтика", npc.romance, 100, { tone: "romance" }));
+  sec.append(bars);
+
+  const actions = section("Действия с человеком", "");
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  grid.append(
+    card("Поговорить", "Укрепляет связь и доверие.", "1 действие", button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct(), className: "primary" })),
+    card("Провести время", "Сближает и снижает стресс.", "1 действие", button("Вместе", () => relationshipAction("spend_time", npc.id), { disabled: !canAct() })),
+    card("Поддержать", "Помогает в трудный момент.", "1 действие", button("Поддержать", () => relationshipAction("support", npc.id), { disabled: !canAct() })),
+    card("Подарок", "Внимание укрепляет связь.", `${fmt(Math.floor(420 * cityData().cost))}`, button("Подарить", () => relationshipAction("gift", npc.id), { disabled: !canAct() || state.personalMoney < Math.floor(420 * cityData().cost) })),
+    card("Помочь деньгами", "Перевести часть денег.", `${fmt(Math.floor(400 * cityData().cost))}`, button("Помочь", () => relationshipAction("help_money", npc.id), { disabled: !canAct() || state.personalMoney + state.familyMoney < Math.floor(400 * cityData().cost), className: "money" })),
+    card("Попросить помощь", "Нужны связь и доверие.", "1 действие", button("Попросить", () => relationshipAction("ask_help", npc.id), { disabled: !canAct() || npc.bond < 38 || npc.trust < 30 })),
+    card("Извиниться", "Снижает конфликт.", "1 действие", button("Извиниться", () => relationshipAction("apologize", npc.id), { disabled: !canAct() || (npc.conflict ?? 0) < 8 })),
+    card("Поссориться", "Выяснить отношения.", "1 действие", button("Высказать", () => relationshipAction("argue", npc.id), { disabled: !canAct() }))
+  );
+  actions.append(grid);
+  sec.append(actions);
+
+  const hist = section("История отношений", "");
+  const list = document.createElement("div");
+  list.className = "timeline-list";
+  (npc.history || []).slice(-10).reverse().forEach((text) => appendTimelineEntry(list, text));
+  if (!list.children.length) {
+    const empty = document.createElement("div");
+    empty.className = "mini";
+    empty.textContent = "Пока нет записей.";
+    list.append(empty);
+  }
+  hist.append(list);
+  sec.append(hist);
+  return sec;
 }
 
 function renderAdultRelationships() {
@@ -2918,6 +3013,7 @@ let prevMode = null;
 let prevLifeId = null;
 let forceScrollReset = false;
 let peopleFilter = "all";
+let selectedNpcId = null;
 
 function lifeIdentity() {
   return `${state.generation || 1}|${state.firstName || ""}|${state.lastName || ""}`;
@@ -2976,6 +3072,8 @@ function render() {
   const tabChanged = mode === "life" && prevMode === "life" && prevTab !== null && prevTab !== state.tab;
   const modeChanged = prevMode !== null && prevMode !== mode;
   const lifeChanged = prevLifeId !== null && prevLifeId !== lifeId;
+  // Drop any open NPC profile when leaving the People tab or switching lives.
+  if ((tabChanged && state.tab !== "relationships") || lifeChanged) selectedNpcId = null;
   const resetTop = forceScrollReset || modeChanged || lifeChanged;
 
   renderApp();
