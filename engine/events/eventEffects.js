@@ -74,7 +74,21 @@
     };
   }
 
-  function applyEffects(state, effects = {}, rng = Math.random) {
+  // Resolve the NPC an event is bound to (refs.npcId), so options can affect a
+  // concrete person rather than the abstract active partner.
+  function boundNpc(state, refs) {
+    if (!refs || !refs.npcId) return null;
+    return window.GameRelationshipEngine?.findNpc?.(state, refs.npcId) || null;
+  }
+
+  function applyBoundNpcStat(state, refs, key, amount) {
+    const npc = boundNpc(state, refs);
+    if (!npc || !window.GameRelationshipEngine?.changeNpc) return;
+    window.GameRelationshipEngine.changeNpc(npc, { [key]: amount });
+    window.GameRelationshipEngine.syncLegacy?.(state);
+  }
+
+  function applyEffects(state, effects = {}, rng = Math.random, refs = null) {
     for (const [key, rawAmount] of Object.entries(effects || {})) {
       if (rawAmount === undefined || rawAmount === null) continue;
       if (["legalFine", "legalCase", "legalStatus", "publicTrust", "socialStanding"].includes(key) && window.GameLegalEngine?.applyEffects) {
@@ -161,6 +175,34 @@
           window.GameRelationshipEngine?.changeNpc?.(npc, { [map[key]]: rawAmount });
         });
         window.GameRelationshipEngine?.syncLegacy?.(state);
+      } else if (key === "boundNpcBond" || key === "boundNpcTrust" || key === "boundNpcConflict" || key === "boundNpcRomance" || key === "boundNpcRespect" || key === "boundNpcAttraction") {
+        const map = {
+          boundNpcBond: "bond",
+          boundNpcTrust: "trust",
+          boundNpcConflict: "conflict",
+          boundNpcRomance: "romance",
+          boundNpcRespect: "respect",
+          boundNpcAttraction: "attraction",
+        };
+        applyBoundNpcStat(state, refs, map[key], rawAmount);
+      } else if (key === "boundPlacePopularity" || key === "boundPlaceSafety") {
+        const place = refs && refs.placeId ? window.GamePlaces?.findPlace?.(state, refs.placeId) : null;
+        if (place) {
+          const field = key === "boundPlacePopularity" ? "popularity" : "safety";
+          place[field] = window.GameRandom.clamp(safeNumber(place[field]) + safeNumber(rawAmount), 0, 100);
+        }
+      } else if (key === "treatBoundCondition" && rawAmount) {
+        if (refs && refs.conditionId) window.GameHealthEngine?.removeCondition?.(state, refs.conditionId);
+      } else if (key === "worsenBoundCondition" && rawAmount) {
+        if (refs && refs.conditionId && window.GameHealthEngine?.applyEffects) {
+          window.GameHealthEngine.applyEffects(state, { health: -safeNumber(rawAmount), stress: safeNumber(rawAmount) });
+        }
+      } else if (key === "pregnancyAcknowledge" && rawAmount) {
+        window.GamePregnancy?.acknowledge?.(state);
+      } else if (key === "pregnancyChoice" && rawAmount) {
+        window.GamePregnancy?.recordChoice?.(state, String(rawAmount));
+      } else if (key === "boundPromotion" && rawAmount) {
+        window.GameCareerEngine?.promote?.(state);
       } else if (key === "flags") {
         ensureFlags(state);
         rawAmount.forEach((flag) => {
@@ -173,5 +215,5 @@
     }
   }
 
-  window.GameEventEffects = { applyEffects, safeNumber, boundedStats };
+  window.GameEventEffects = { applyEffects, safeNumber, boundedStats, boundNpc };
 })();

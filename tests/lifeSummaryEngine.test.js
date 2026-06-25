@@ -45,6 +45,7 @@ global.localStorage = {
   "data/events/money.js",
   "data/events/health.js",
   "data/events/legal.js",
+  "data/events/objectReferenced.js",
   "engine/npcFactory.js",
   "engine/careerEngine.js",
   "engine/economyEngine.js",

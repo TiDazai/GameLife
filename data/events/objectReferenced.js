@@ -1,0 +1,121 @@
+(() => {
+  // Object-referencing events. Each declares `binds` so the engine attaches the
+  // event to a concrete world object (a specific NPC, place, workplace, health
+  // condition or pregnancy) instead of an abstract string. Text uses {tokens}
+  // that the engine interpolates with the bound object's name, and options use
+  // the bound* effect keys to change that exact object.
+  const events = [
+    {
+      id: "obj_friend_favor",
+      category: "relationship",
+      title: "Просьба от друга",
+      description: "{npcName} просит о небольшой услуге в трудный момент.",
+      minAge: 12,
+      maxAge: 90,
+      baseWeight: 6,
+      conditions: {},
+      binds: { npc: { relationGroup: "friends" } },
+      weightModifiers: [{ stat: "kindness", gte: 55, add: 3 }],
+      options: [
+        { id: "help", label: "Помочь", description: "Поддержать друга.", effects: { boundNpcBond: 6, boundNpcTrust: 5, stress: 3, happiness: 2 }, resultText: "{npcName} оценил(а) вашу поддержку." },
+        { id: "decline", label: "Отказать", description: "У вас своих дел хватает.", effects: { boundNpcConflict: 5, boundNpcTrust: -4, stress: -1 }, resultText: "{npcName} понял(а), но осадок остался." },
+      ],
+    },
+    {
+      id: "obj_coworker_tension",
+      category: "career",
+      title: "Напряжение с коллегой",
+      description: "С коллегой {npcName} назрел рабочий конфликт.",
+      minAge: 18,
+      maxAge: 70,
+      baseWeight: 6,
+      conditions: { requiredState: { employed: true } },
+      binds: { npc: { relationType: "coworker" } },
+      weightModifiers: [{ stat: "stress", gte: 55, add: 4 }],
+      options: [
+        { id: "talk", label: "Поговорить напрямую", description: "Разобрать вопрос лицом к лицу.", effects: { boundNpcConflict: -6, boundNpcRespect: 4, stress: -2 }, resultText: "Разговор с {npcName} снял напряжение." },
+        { id: "escalate", label: "Вынести руководству", description: "Передать вопрос выше.", effects: { boundNpcConflict: 8, boundNpcTrust: -6, reputation: -2 }, resultText: "С {npcName} стало холоднее." },
+      ],
+    },
+    {
+      id: "obj_workplace_project",
+      category: "career",
+      title: "Ключевой проект",
+      description: "В компании «{companyName}» вам доверяют важный проект.",
+      minAge: 18,
+      maxAge: 70,
+      baseWeight: 5,
+      conditions: { requiredState: { employed: true } },
+      binds: { workplace: true },
+      weightModifiers: [{ stat: "discipline", gte: 55, add: 4 }],
+      options: [
+        {
+          id: "lead",
+          label: "Взяться и тянуть",
+          description: "Вложиться полностью.",
+          effects: { stress: 8, discipline: 2, experience: 1 },
+          resultText: "Вы взяли проект «{companyName}» на себя.",
+          risk: { chance: 0.5, effects: { boundPromotion: 1, happiness: 4 }, resultText: "Проект выстрелил — вас повысили." },
+        },
+        { id: "share", label: "Разделить с командой", description: "Снять часть нагрузки.", effects: { stress: 2, reputation: 1 }, resultText: "Команда «{companyName}» распределила работу." },
+      ],
+    },
+    {
+      id: "obj_place_run_in",
+      category: "social",
+      title: "Случайная встреча",
+      description: "В заведении «{placeName}» вы неожиданно встречаете {npcName}.",
+      minAge: 16,
+      maxAge: 90,
+      baseWeight: 5,
+      conditions: {},
+      binds: { place: {}, npc: {} },
+      weightModifiers: [{ stat: "social", gte: 50, add: 3 }],
+      options: [
+        { id: "join", label: "Провести время вместе", description: "Остаться и пообщаться.", effects: { boundNpcBond: 4, happiness: 3, boundPlacePopularity: 2, stress: -1 }, resultText: "Вечер с {npcName} в «{placeName}» удался." },
+        { id: "wave", label: "Поздороваться и уйти", description: "Не задерживаться.", effects: { boundNpcBond: 1, social: 1 }, resultText: "Вы коротко поговорили с {npcName} и ушли." },
+      ],
+    },
+    {
+      id: "obj_condition_checkup",
+      category: "health",
+      title: "Решение по здоровью",
+      description: "Состояние «{conditionName}» требует внимания.",
+      minAge: 5,
+      maxAge: 100,
+      baseWeight: 6,
+      conditions: {},
+      binds: { condition: true },
+      weightModifiers: [{ stat: "health", lte: 60, add: 4 }],
+      options: [
+        {
+          id: "treat",
+          label: "Заняться лечением",
+          description: "Пройти курс и отдых.",
+          effects: { money: -300, stress: 2 },
+          resultText: "Вы взялись за «{conditionName}».",
+          risk: { chance: 0.6, effects: { treatBoundCondition: 1, health: 6 }, resultText: "Состояние «{conditionName}» удалось снять." },
+        },
+        { id: "ignore", label: "Отложить", description: "Сейчас не до этого.", effects: { worsenBoundCondition: 4 }, resultText: "«{conditionName}» осталось без внимания." },
+      ],
+    },
+    {
+      id: "obj_pregnancy_planning",
+      category: "family",
+      title: "Подготовка к рождению",
+      description: "Беременность идёт — пора решить, как готовиться.",
+      minAge: 18,
+      maxAge: 49,
+      baseWeight: 7,
+      conditions: {},
+      binds: { pregnancy: true },
+      weightModifiers: [{ stat: "happiness", gte: 55, add: 3 }],
+      options: [
+        { id: "prepare", label: "Готовиться осознанно", description: "Признать и планировать.", effects: { pregnancyAcknowledge: 1, pregnancyChoice: "prepared", money: -400, happiness: 5, stress: 2 }, resultText: "Вы спокойно готовитесь к рождению ребёнка." },
+        { id: "drift", label: "Пустить на самотёк", description: "Решать по ходу.", effects: { pregnancyChoice: "unprepared", stress: 5 }, resultText: "Вы отложили подготовку на потом." },
+      ],
+    },
+  ];
+
+  window.GameEventData = [...(window.GameEventData || []), ...events];
+})();
