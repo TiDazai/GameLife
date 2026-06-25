@@ -145,6 +145,7 @@ const baseState = {
   nightlife: null,
   adultWork: null,
   pregnancy: null,
+  socialWorld: null,
 };
 
 const state = createNewLife();
@@ -168,6 +169,16 @@ function createNewLife(options = {}) {
     person("grandma1", nameFor(st.country, "female"), "Бабушка", "female", motherAge + 24 + roll(10), true, "Пенсионер", 45 + roll(30)),
     person("grandpa1", nameFor(st.country, "male"), "Дедушка", "male", motherAge + 25 + roll(12), true, "Пенсионер", 40 + roll(30)),
   ];
+  // Siblings: a chance of 1-2 brothers/sisters, each a concrete relative with a
+  // plausible age relative to the parents.
+  const siblingCount = Math.random() < 0.55 ? 1 + (Math.random() < 0.35 ? 1 : 0) : 0;
+  for (let i = 0; i < siblingCount; i++) {
+    const sibGender = Math.random() > 0.5 ? "male" : "female";
+    const sibAge = Math.max(0, motherAge - 18 - roll(6) + roll(3));
+    const sibling = person(`sibling${i + 1}`, nameFor(st.country, sibGender), sibGender === "female" ? "Сестра" : "Брат", sibGender, sibAge, true, "ребенок", 55 + roll(25));
+    sibling.relationType = "sibling";
+    st.family.push(sibling);
+  }
   st.family.forEach((member) => {
     member.bond = clamp(member.bond, 0, 100);
     member.health = clamp(member.health + (member.id === "mother" || member.id === "father" ? socialClass.parentHealthBonus : 0), 0, 100);
@@ -194,6 +205,11 @@ function createNewLife(options = {}) {
   if (window.GameHealthEngine?.normalizeHealthState) window.GameHealthEngine.normalizeHealthState(st, st);
   if (window.GameLegalEngine?.normalizeLegalState) window.GameLegalEngine.normalizeLegalState(st, st);
   if (window.GamePlaces?.ensureCityPlaces) window.GamePlaces.ensureCityPlaces(st);
+  if (window.GameSocialWorld?.normalizeSocialWorld) {
+    window.GameSocialWorld.normalizeSocialWorld(st);
+    window.GameSocialWorld.ensureFamilyCircle(st);
+    window.GameSocialWorld.ensureChildhoodCircle(st);
+  }
   st.achievements = window.GameLifeSummaryEngine?.readAchievements?.() || [];
   const birthVerb = playerGender === "female" ? "родилась" : "родился";
   st.log = [
@@ -381,6 +397,7 @@ function normalizeState(st) {
   merged.nightlife = st.nightlife && typeof st.nightlife === "object" ? st.nightlife : null;
   merged.adultWork = st.adultWork && typeof st.adultWork === "object" ? st.adultWork : null;
   merged.pregnancy = st.pregnancy && typeof st.pregnancy === "object" ? st.pregnancy : null;
+  merged.socialWorld = st.socialWorld && typeof st.socialWorld === "object" ? st.socialWorld : null;
   if (window.GameEducationPath?.normalize) window.GameEducationPath.normalize(merged);
   if (window.GameWorkplace?.normalize) window.GameWorkplace.normalize(merged);
   if (window.GameNightlife?.normalize) window.GameNightlife.normalize(merged);
@@ -388,6 +405,7 @@ function normalizeState(st) {
   if (window.GamePregnancy?.normalize) window.GamePregnancy.normalize(merged);
   if (window.GameRelationshipEngine?.normalizeNpcs) window.GameRelationshipEngine.normalizeNpcs(merged);
   else syncLegacyFromNpcs(merged);
+  if (window.GameSocialWorld?.normalizeSocialWorld) window.GameSocialWorld.normalizeSocialWorld(merged);
   return merged;
 }
 

@@ -164,6 +164,8 @@
     npc.relationType = "partner";
     npc.role = relationLabels.partner;
     npc.romance = clamp(npc.romance || 45, 0, 100);
+    if (!npc.metContext) npc.metContext = "dating";
+    if (npc.metYear == null) npc.metYear = state.age || 0;
     addNpcHistory(npc, "Начались отношения.");
     addNpc(state, npc);
     return npc;

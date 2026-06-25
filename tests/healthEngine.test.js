@@ -50,6 +50,7 @@ global.localStorage = {
   "state.js",
   "engine/relationshipEngine.js",
   "engine/relationshipActions.js",
+  "engine/socialWorldEngine.js",
 ].forEach((file) => vm.runInThisContext(fs.readFileSync(file, "utf8"), { filename: file }));
 
 GameState.setRenderCallback(() => {});

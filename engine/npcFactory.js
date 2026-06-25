@@ -200,6 +200,10 @@
         : { field: "", positionId: null, companyId: null },
       workplaceId: input.workplaceId || null,
       schoolId: input.schoolId || null,
+      // --- where/when/how this person entered the player's life ---
+      metContext: safeText(input.metContext, ""),
+      metYear: input.metYear != null ? Math.max(0, Math.floor(safeNumber(input.metYear, 0))) : null,
+      metAtPlaceId: input.metAtPlaceId || null,
       secrets: Array.isArray(input.secrets) ? input.secrets.slice(-12) : [],
       flags: input.flags && typeof input.flags === "object" ? { ...input.flags } : {},
     };
@@ -386,6 +390,26 @@
     return createContactNpc(state, "date", { ageSpread: 4, minAge: 18, bond: 35 + roll(20), trust: 32 + roll(18), romance: 35 + roll(25), tags: ["romance"], ...input });
   }
 
+  const metContextLabels = {
+    family: "в семье",
+    neighborhood: "по соседству",
+    school: "в школе",
+    college: "в колледже",
+    university: "в университете",
+    work: "на работе",
+    nightlife: "в ночной жизни",
+    dating: "на свидании",
+    clinic: "в клинике",
+    legal: "по юридическому делу",
+    business: "по делам бизнеса",
+    random_event: "случайно",
+    childhood: "в детстве",
+  };
+
+  function metContextLabel(context) {
+    return metContextLabels[context] || "";
+  }
+
   function migrateLegacyPerson(raw, state = {}) {
     return normalizeNpc(raw, state);
   }
@@ -417,6 +441,8 @@
     relationTypes,
     relationGroups,
     roleByRelation,
+    metContextLabel,
+    metContextLabels,
     safeNumber,
     randomId,
     randomFirstName,

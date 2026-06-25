@@ -281,6 +281,9 @@ function endYear() {
     playerNpc.money = Math.max(0, state.personalMoney || 0);
     window.GameRelationshipEngine.syncLegacy(state);
   }
+  // Lazily populate age-appropriate social circles (school, work, etc.).
+  // Every builder is dedup-guarded so repeated years never duplicate people.
+  window.GameSocialWorld?.tick?.(state);
   state.maxActions = maxActionsForAge();
   state.actions = state.maxActions;
   window.GameActionLoad?.resetYearlyActionLoad?.(state);

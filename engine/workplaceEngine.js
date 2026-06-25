@@ -115,20 +115,31 @@
   function populateColleagues(state, w, field) {
     if (!npcF() || !rel()) return;
     // one boss
+    const companyId = w.company ? w.company.id : null;
     const boss = npcF().createBossNpc(state, {
       workplaceId: w.workplaceId,
-      career: { field, companyId: w.company ? w.company.id : null },
+      career: { field, companyId, positionId: w.positionId || null },
+      metContext: "work",
+      metAtPlaceId: w.workplaceId,
+      metYear: state.age || 0,
     });
     rel().addNpc(state, boss);
+    rel().addNpcHistory?.(boss, "Мой руководитель на работе.");
+    if (w.workplaceId) window.GamePlaces?.attachNpc?.(state, w.workplaceId, boss.id);
     w.bossId = boss.id;
     // a handful of concrete coworkers
     const count = 2 + rnd().roll(3);
     for (let i = 0; i < count; i += 1) {
       const npc = npcF().createCoworkerNpc(state, {
         workplaceId: w.workplaceId,
-        career: { field, companyId: w.company ? w.company.id : null },
+        career: { field, companyId, positionId: w.positionId || null },
+        metContext: "work",
+        metAtPlaceId: w.workplaceId,
+        metYear: state.age || 0,
       });
       rel().addNpc(state, npc);
+      rel().addNpcHistory?.(npc, "Коллега по работе.");
+      if (w.workplaceId) window.GamePlaces?.attachNpc?.(state, w.workplaceId, npc.id);
       w.coworkerIds.push(npc.id);
     }
   }
@@ -180,6 +191,20 @@
     const w = state.workplace;
     if (!w.active) return null;
     w.active = false;
+    // Old colleagues don't vanish: they stay in the world as acquaintances and
+    // are tagged so the player can still see who they used to work with.
+    const formerIds = [w.bossId, ...(w.coworkerIds || [])].filter(Boolean);
+    formerIds.forEach((id) => {
+      const npc = rel() ? rel().findNpc(state, id) : null;
+      if (!npc) return;
+      if (npc.relationType === "boss" || npc.relationType === "coworker") {
+        npc.relationType = "acquaintance";
+        npc.role = window.GameNpcFactory?.roleByRelation?.acquaintance || "Знакомый";
+      }
+      npc.tags = [...new Set([...(npc.tags || []), "ex_coworker", "ex_work"])];
+      rel()?.addNpcHistory?.(npc, "Перестали работать вместе.");
+    });
+    if (rel()?.syncLegacy) rel().syncLegacy(state);
     pushHistory(w, reason);
     return w;
   }

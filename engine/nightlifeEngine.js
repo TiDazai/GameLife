@@ -79,8 +79,13 @@
     else if (type === "friend") npc = npcF().createFriendNpc(state, {});
     else npc = npcF().createAcquaintanceNpc(state, {});
     npc.flags = { ...(npc.flags || {}), metAt: activity.placeType, nightlife: true };
-    rel().addNpc(state, npc);
     const n = normalize(state);
+    npc.metContext = "nightlife";
+    npc.metAtPlaceId = n.lastVenueId || null;
+    npc.metYear = state.age || 0;
+    rel().addNpc(state, npc);
+    rel().addNpcHistory?.(npc, "Познакомились в ночной жизни.");
+    if (n.lastVenueId) window.GamePlaces?.attachNpc?.(state, n.lastVenueId, npc.id);
     n.encounterIds.push(npc.id);
     n.encounters += 1;
     return npc;

@@ -102,6 +102,7 @@
     const path = state.educationPath;
     if (!npcF() || !rel()) return;
     const teacherRel = meta.level === "university" || meta.level === "master" ? "professor" : "teacher";
+    const metContext = meta.level === "school" ? "school" : path.institutionType === "college" ? "college" : "university";
     const teacherCount = rangeRoll(meta.teacherCount || [2, 3]);
     const classmateCount = rangeRoll(meta.classmateCount || [3, 6]);
     for (let i = 0; i < teacherCount; i += 1) {
@@ -109,16 +110,26 @@
       const npc = maker(state, {
         schoolId: institutionId,
         occupation: specialtyObj ? `преподаватель: ${specialtyObj.title}` : undefined,
+        metContext,
+        metAtPlaceId: institutionId,
+        metYear: state.age || 0,
       });
       rel().addNpc(state, npc);
+      rel().addNpcHistory?.(npc, "Преподаватель.");
+      if (institutionId) window.GamePlaces?.attachNpc?.(state, institutionId, npc.id);
       path.teacherIds.push(npc.id);
     }
     for (let i = 0; i < classmateCount; i += 1) {
       const npc = npcF().createClassmateNpc(state, {
         schoolId: institutionId,
         education: specialtyObj ? { level: meta.level, specialtyId: specialtyObj.id, institutionId } : undefined,
+        metContext,
+        metAtPlaceId: institutionId,
+        metYear: state.age || 0,
       });
       rel().addNpc(state, npc);
+      rel().addNpcHistory?.(npc, "Учимся вместе.");
+      if (institutionId) window.GamePlaces?.attachNpc?.(state, institutionId, npc.id);
       path.classmateIds.push(npc.id);
     }
   }

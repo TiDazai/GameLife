@@ -530,6 +530,7 @@ function activityAction(type) {
   }
   if (type === "lawyer") {
     window.GameLegalEngine?.hireLawyer?.(state);
+    window.GameSocialWorld?.createLawyerNpc?.(state);
   }
   if (type === "apologize") {
     if (window.GameLegalEngine?.restoreReputation) window.GameLegalEngine.restoreReputation(state, "public_apology");
@@ -543,7 +544,10 @@ function activityAction(type) {
 
 function legalAction(type, payload = null) {
   if (type === "pay_fine") return window.GameLegalEngine?.payFine?.(state, payload);
-  if (type === "lawyer") return window.GameLegalEngine?.hireLawyer?.(state, payload);
+  if (type === "lawyer") {
+    window.GameSocialWorld?.createLawyerNpc?.(state);
+    return window.GameLegalEngine?.hireLawyer?.(state, payload);
+  }
   if (type === "restore") return window.GameLegalEngine?.restoreReputation?.(state, "restore_reputation");
   if (type === "volunteer") return window.GameLegalEngine?.restoreReputation?.(state, "volunteer");
   if (type === "apology") return window.GameLegalEngine?.restoreReputation?.(state, "public_apology");
@@ -815,13 +819,17 @@ function healthHabitAction(type) {
   window.GameHealthEngine.applyEffects(state, actionData.effects);
   if (type === "activity") improveSkill("fitness", 2);
   if (type === "calm") improveSkill("empathy", 1);
+  if (type === "checkup") window.GameSocialWorld?.createDoctorNpc?.(state);
   notify(actionData.text);
   return { ok: true, text: actionData.text, cost };
 }
 
 function healthTreatment(conditionId, treatmentId) {
   const result = window.GameHealthEngine?.treatCondition?.(state, conditionId, treatmentId);
-  if (result?.ok) window.GameState.requestRender?.();
+  if (result?.ok) {
+    window.GameSocialWorld?.createDoctorNpc?.(state);
+    window.GameState.requestRender?.();
+  }
   return result || { ok: false, text: "Лечение недоступно." };
 }
 

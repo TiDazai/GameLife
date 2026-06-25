@@ -146,6 +146,8 @@
     // story arc + goal hooks
     window.GameStoryArcs?.onAction?.(state, action, { failed });
     window.GameLifeGoals?.onAction?.(state, action, { failed });
+    // NPC-first: some catalog actions introduce concrete people into the world.
+    window.GameSocialWorld?.onDataAction?.(state, action, { failed });
 
     if (window.GameState?.requestRender) window.GameState.requestRender();
     return { ok: true, failed, kind, resultText, efficiency };

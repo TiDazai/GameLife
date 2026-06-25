@@ -61,6 +61,7 @@ global.localStorage = {
   "state.js",
   "engine/relationshipEngine.js",
   "engine/relationshipActions.js",
+  "engine/socialWorldEngine.js",
   "engine/actions.js",
   "engine/events/eventConditions.js",
   "engine/events/eventEffects.js",
