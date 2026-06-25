@@ -170,6 +170,44 @@ test("sticky live-year footer shows a compact year preview", () => {
   assert(css.includes("position: sticky")); // footer stays in view
 });
 
+test("world tab surfaces concrete places and 18+ gated nightlife/adult route", () => {
+  assert(render.includes("function renderCityPlaces"));
+  assert(render.includes("Места города"));
+  assert(render.includes("function renderNightlife"));
+  assert(render.includes("Ночная жизнь"));
+  assert(render.includes("function renderAdultWork"));
+  assert(render.includes("Взрослая рискованная ветка"));
+  // both adult blocks gate on engine availability (18+)
+  assert(render.includes("const engine = window.GameNightlife"));
+  assert(render.includes("const engine = window.GameAdultWork"));
+  assert(render.includes("engine?.isAvailable?.(state)"));
+});
+
+test("career tab shows concrete company, boss and coworkers", () => {
+  assert(render.includes("function renderWorkplaceTeam"));
+  assert(render.includes("Компания и коллеги"));
+  assert(render.includes("GameWorkplace?.boss?.(state)"));
+  assert(render.includes("GameWorkplace?.coworkers?.(state)"));
+});
+
+test("education tab shows concrete institution, specialty and cohort", () => {
+  assert(render.includes("function renderEducationInstitution"));
+  assert(render.includes("Учебное заведение"));
+  assert(render.includes("Поступление"));
+  assert(render.includes("availableSpecialties"));
+});
+
+test("health tab lists doctors as concrete NPCs", () => {
+  assert(render.includes("function renderHealthDoctors"));
+  assert(render.includes("Врачи и специалисты"));
+});
+
+test("people roster supports relation-group filters", () => {
+  assert(render.includes("peopleFilter"));
+  assert(render.includes("relationGroups"));
+  assert(render.includes("filterChips"));
+});
+
 test("activities tab is a single action surface, not a duplicate grid", () => {
   // renderActivities must only compose recommendations + the data-driven catalog,
   // with no parallel legacy "manual activities" grid.

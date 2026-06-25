@@ -1612,6 +1612,13 @@ function renderWorld() {
 
   moves.append(list);
   root.append(moves);
+
+  const placesNode = renderCityPlaces();
+  if (placesNode) root.append(placesNode);
+  const nightlifeNode = renderNightlife();
+  if (nightlifeNode) root.append(nightlifeNode);
+  const adultWorkNode = renderAdultWork();
+  if (adultWorkNode) root.append(adultWorkNode);
   return root;
 }
 
@@ -1675,6 +1682,9 @@ function renderEducation() {
   }
   certs.append(certGrid);
   root.append(certs);
+
+  const institutionNode = renderEducationInstitution();
+  if (institutionNode) root.append(institutionNode);
   return root;
 }
 
@@ -1743,6 +1753,9 @@ function renderCareer() {
   );
   growth.append(grid);
   root.append(growth);
+
+  const teamNode = renderWorkplaceTeam();
+  if (teamNode) root.append(teamNode);
   return root;
 }
 
@@ -1847,6 +1860,9 @@ function renderHealth() {
   }
   history.append(list);
   root.append(history);
+
+  const doctorsNode = renderHealthDoctors();
+  if (doctorsNode) root.append(doctorsNode);
   return root;
 }
 
@@ -2216,30 +2232,50 @@ function renderRelationships() {
   const people = (window.GameRelationshipEngine?.list?.(state) || []).filter((npc) => npc.alive && npc.relationType !== "self" && npc.relationType !== "spouse" && npc.relationType !== "partner");
   if (people.length) {
     const social = section("Близкие и знакомые", "Каждый человек хранит отдельные доверие, конфликт, уважение и историю.");
+    const groups = window.GameNpcFactory?.relationGroups || {};
+    const groupOf = (npc) => Object.keys(groups).find((g) => (groups[g] || []).includes(npc.relationType)) || "other";
+    const present = [...new Set(people.map(groupOf))];
+    const groupLabels = { family: "Семья", friends: "Друзья", romance: "Романтика", exes: "Бывшие", work: "Работа", study: "Учёба", services: "Службы", other: "Прочие" };
+    const chipEntries = [["all", "Все"], ...present.map((g) => [g, groupLabels[g] || g])];
     const pg = document.createElement("div");
     pg.className = "grid";
-    people.forEach((npc) => {
-      const tone = ["friend", "best_friend"].includes(npc.relationType) ? "good" : npc.relationType === "enemy" ? "bad" : "family";
-      const lines = [
-        npc.occupation || npc.role,
-        `Связь ${npc.bond}/100 · Доверие ${npc.trust}/100`,
-        `Конфликт ${npc.conflict}/100 · Уважение ${npc.respect}/100`,
-      ];
-      const actions = document.createElement("div");
-      actions.className = "button-grid two";
-      actions.append(
-        button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct(), className: "primary" }),
-        button("Поддержать", () => relationshipAction("support", npc.id), { disabled: !canAct() }),
-        button("Помочь деньгами", () => relationshipAction("help_money", npc.id), {
-          disabled: !canAct() || state.personalMoney + state.familyMoney < Math.floor(400 * cityData().cost),
-          className: "money",
-        }),
-        button("Попросить помощь", () => relationshipAction("ask_help", npc.id), {
-          disabled: !canAct() || npc.bond < 38 || npc.trust < 30,
-        })
-      );
-      pg.append(personCard(`${npc.name} ${npc.lastName || ""}`.trim(), npc.role, lines, actions, { tone }));
-    });
+    const buildPeople = () => {
+      pg.replaceChildren();
+      const filtered = peopleFilter === "all" ? people : people.filter((npc) => groupOf(npc) === peopleFilter);
+      filtered.forEach((npc) => {
+        const tone = ["friend", "best_friend"].includes(npc.relationType) ? "good" : npc.relationType === "enemy" ? "bad" : "family";
+        const lines = [
+          npc.occupation || npc.role,
+          `Связь ${npc.bond}/100 · Доверие ${npc.trust}/100`,
+          `Конфликт ${npc.conflict}/100 · Уважение ${npc.respect}/100`,
+        ];
+        const actions = document.createElement("div");
+        actions.className = "button-grid two";
+        actions.append(
+          button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct(), className: "primary" }),
+          button("Поддержать", () => relationshipAction("support", npc.id), { disabled: !canAct() }),
+          button("Помочь деньгами", () => relationshipAction("help_money", npc.id), {
+            disabled: !canAct() || state.personalMoney + state.familyMoney < Math.floor(400 * cityData().cost),
+            className: "money",
+          }),
+          button("Попросить помощь", () => relationshipAction("ask_help", npc.id), {
+            disabled: !canAct() || npc.bond < 38 || npc.trust < 30,
+          })
+        );
+        pg.append(personCard(`${npc.name} ${npc.lastName || ""}`.trim(), npc.role, lines, actions, { tone }));
+      });
+      if (!filtered.length) pg.append(emptyState("Никого нет", "В этой группе пока нет людей."));
+    };
+    if (!present.includes(peopleFilter) && peopleFilter !== "all") peopleFilter = "all";
+    const chipsHost = document.createElement("div");
+    const onPick = (id) => {
+      peopleFilter = id;
+      chipsHost.replaceChildren(filterChips(chipEntries, peopleFilter, onPick));
+      buildPeople();
+    };
+    chipsHost.append(filterChips(chipEntries, peopleFilter, onPick));
+    social.append(chipsHost);
+    buildPeople();
     social.append(pg);
     root.append(social);
   }
@@ -2629,6 +2665,185 @@ function renderDeathSummary() {
   return root;
 }
 
+// --- World expansion UI: concrete places, nightlife, adult route ----------
+
+function placeTypeLabel(type) {
+  return window.GamePlaces?.typeLabel?.(type) || type;
+}
+
+function renderCityPlaces() {
+  const places = window.GamePlaces?.placesInCity?.(state) || [];
+  if (!places.length) return null;
+  const sec = section("Места города", "Конкретные заведения вашего города. У каждого свои престиж, безопасность и популярность.");
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  places.slice(0, 24).forEach((p) => {
+    const lines = [
+      `${placeTypeLabel(p.type)} · ${p.district || "—"}`,
+      `Престиж ${p.prestige}/100 · Безопасность ${p.safety}/100`,
+      `Популярность ${p.popularity}/100 · Завсегдатаев: ${p.npcIds?.length || 0}`,
+    ];
+    const node = personCard(p.name, placeTypeLabel(p.type), lines, null, { tone: window.GamePlaces?.isAdultType?.(p.type) ? "warn" : "" });
+    if (window.GamePlaces?.isAdultType?.(p.type)) node.prepend(badgeRow([["18+", "adult"]]));
+    grid.append(node);
+  });
+  sec.append(grid);
+  return sec;
+}
+
+function renderNightlife() {
+  const engine = window.GameNightlife;
+  if (!engine?.isAvailable?.(state)) return null;
+  const sec = section("Ночная жизнь", "Доступно с 18 лет. Выходы дают отдых и знакомства, но несут расходы и риски (конфликты, репутация, здоровье).");
+  sec.querySelector(".section-head > div")?.prepend(badgeRow([["18+", "adult"]]));
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  (engine.listActivities?.(state) || []).forEach((act) => {
+    const cost = act.cost ? `${fmt(Math.floor(act.cost * cityData().cost))} · ` : "";
+    const meta = `${cost}${act.tags?.includes("adult_only") || act.adultOnly ? "18+ · " : ""}риск/выгода зависят от места`;
+    grid.append(card(act.title, "", meta, button("Пойти", () => {
+      engine.go(state, act.id, Math.random);
+      render();
+    }, { disabled: !canAct(), className: canAct() ? "primary" : "" })));
+  });
+  sec.append(grid);
+  return sec;
+}
+
+function renderAdultWork() {
+  const engine = window.GameAdultWork;
+  if (!engine?.isAvailable?.(state)) return null;
+  const sec = section("Взрослая рискованная ветка", "Доступно с 18 лет, по согласию. Абстрактная игровая ветка с доходом и рисками (право, репутация, здоровье). Без откровенных деталей.");
+  sec.querySelector(".section-head > div")?.prepend(badgeRow([["18+", "adult"]]));
+  if (engine.isActive?.(state)) {
+    const p = state.adultWork;
+    const bars = document.createElement("div");
+    bars.className = "grid";
+    [["Безопасность", p.safety, "good"], ["Конфиденциальность", p.discretion, "money"], ["Стресс", p.stress, "warn"], ["Правовой риск", p.legalRisk, "bad"]].forEach(([label, value, tone]) => bars.append(progressBar(label, value ?? 0, 100, { tone })));
+    sec.append(bars);
+    const info = document.createElement("div");
+    info.className = "tagline";
+    [`Доход всего: ${fmt(p.totalEarned || 0)}`, `Лет в ветке: ${p.yearsActive || 0}`, `Раскрытие: ${p.exposed ? "да" : "нет"}`].forEach((t) => {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = t;
+      info.append(tag);
+    });
+    sec.append(info);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    grid.append(
+      card("Усилить приватность", "", "Снижает риск раскрытия", button("Скрыть", () => { engine.hide(state); render(); }, { disabled: !canAct(), className: "primary" })),
+      card("Рассказать партнёру", "", "Реакция зависит от человека", button("Раскрыть", () => { engine.reveal(state); render(); }, { disabled: !canAct() })),
+      card("Выйти из ветки", "", "Завершить и оставить прошлое позади", button("Выйти", () => { engine.exit(state); render(); }, { disabled: !canAct() }))
+    );
+    sec.append(grid);
+    return sec;
+  }
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  (engine.listTypes?.(state) || []).forEach((type) => {
+    const meta = `Доход ${fmt(type.incomeRange?.[0] || 0)}–${fmt(type.incomeRange?.[1] || 0)} · риск права ${type.legalRisk}/100`;
+    grid.append(card(type.title, "", meta, button("Начать", () => { engine.start(state, type.id); render(); }, { disabled: !canAct(), className: canAct() ? "primary" : "" })));
+  });
+  sec.append(grid);
+  return sec;
+}
+
+// --- Career: concrete company, boss and coworkers --------------------------
+
+function renderWorkplaceTeam() {
+  const wp = state.workplace;
+  if (!wp || !wp.active) return null;
+  const sec = section("Компания и коллеги", "Ваше место работы — конкретная компания с руководителем и коллегами.");
+  const info = document.createElement("div");
+  info.className = "tagline";
+  [`${wp.company?.name || "Компания"}`, `${wp.company?.sizeLabel || ""}`, `Должность: ${wp.title || "—"}`, `Престиж ${wp.company?.prestige || 0}/100`].filter(Boolean).forEach((t) => {
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = t;
+    info.append(tag);
+  });
+  sec.append(info);
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  const boss = window.GameWorkplace?.boss?.(state);
+  if (boss) {
+    grid.append(personCard(boss.fullName || boss.name, "Руководитель", [boss.occupation || "", `Уважение ${boss.respect ?? boss.relationshipStats?.respect ?? 0}/100`], button("Поговорить", () => { relationshipAction("talk", boss.id); }, { disabled: !canAct(), className: "primary" }), { tone: "career" }));
+  }
+  (window.GameWorkplace?.coworkers?.(state) || []).forEach((cw) => {
+    grid.append(personCard(cw.fullName || cw.name, "Коллега", [cw.occupation || "", `Связь ${cw.bond ?? cw.relationshipStats?.bond ?? 0}/100`], button("Поговорить", () => { relationshipAction("talk", cw.id); }, { disabled: !canAct() }), { tone: "good" }));
+  });
+  sec.append(grid);
+  return sec;
+}
+
+// --- Education: concrete institution, specialty, classmates, teachers ------
+
+function renderEducationInstitution() {
+  const engine = window.GameEducationPath;
+  if (!engine) return null;
+  const path = state.educationPath;
+  if (path && path.active) {
+    const inst = window.GamePlaces?.findPlace?.(state, path.institutionId);
+    const spec = engine.specialty?.(path.specialtyId);
+    const sec = section("Учебное заведение", "Вы учитесь в конкретном заведении по выбранной специальности, с одногруппниками и преподавателями.");
+    const info = document.createElement("div");
+    info.className = "tagline";
+    [`${inst?.name || "Заведение"}`, spec ? `Специальность: ${spec.title}` : "Без специальности", `Успеваемость ${Math.round(path.performance)}/100`, `Выпуск ~${path.expectedGradYear}`].forEach((t) => {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = t;
+      info.append(tag);
+    });
+    sec.append(info);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    (path.teacherIds || []).map((id) => window.GameRelationshipEngine?.findNpc?.(state, id)).filter(Boolean).slice(0, 4).forEach((npc) => {
+      grid.append(personCard(npc.fullName || npc.name, npc.relationType === "professor" ? "Профессор" : "Преподаватель", [npc.occupation || ""], button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct() }), { tone: "career" }));
+    });
+    (path.classmateIds || []).map((id) => window.GameRelationshipEngine?.findNpc?.(state, id)).filter(Boolean).slice(0, 4).forEach((npc) => {
+      grid.append(personCard(npc.fullName || npc.name, "Одногруппник", [`Связь ${npc.bond ?? npc.relationshipStats?.bond ?? 0}/100`], button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct() }), { tone: "good" }));
+    });
+    sec.append(grid);
+    const actions = document.createElement("div");
+    actions.className = "grid";
+    actions.append(card("Бросить учёбу", "", "Прервать обучение без диплома", button("Бросить", () => { engine.dropOut(state); render(); }, { disabled: !canAct() })));
+    sec.append(actions);
+    return sec;
+  }
+  // not enrolled: offer specialties to enroll into
+  const available = engine.availableSpecialties?.(state) || [];
+  if (!available.length) return null;
+  const sec = section("Поступление", "Поступите в конкретное заведение по специальности. Появятся одногруппники, преподаватели и диплом после выпуска.");
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  available.slice(0, 12).forEach((spec) => {
+    const meta = `Уровень: ${spec.level} · престиж ${spec.prestige}/100`;
+    grid.append(card(spec.title, "", meta, button("Поступить", () => {
+      engine.enroll(state, { institutionType: spec.level, specialtyId: spec.id });
+      render();
+    }, { disabled: !canAct(), className: canAct() ? "primary" : "" })));
+  });
+  sec.append(grid);
+  return sec;
+}
+
+// --- Health: detailed conditions + doctors as NPCs -------------------------
+
+function renderHealthDoctors() {
+  const doctors = (window.GameRelationshipEngine?.list?.(state) || []).filter((npc) => npc.alive && (npc.relationType === "doctor" || npc.relationType === "therapist"));
+  if (!doctors.length) return null;
+  const sec = section("Врачи и специалисты", "Конкретные специалисты, к которым вы обращались. Каждый — отдельный человек со своей историей.");
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  doctors.slice(0, 6).forEach((npc) => {
+    grid.append(personCard(npc.fullName || npc.name, npc.relationType === "therapist" ? "Психотерапевт" : "Врач", [npc.occupation || "", `Доверие ${npc.trust ?? npc.relationshipStats?.trust ?? 0}/100`], button("Поговорить", () => relationshipAction("talk", npc.id), { disabled: !canAct() }), { tone: "health" }));
+  });
+  sec.append(grid);
+  return sec;
+}
+
 function renderContent() {
   const views = {
     life: renderLife,
@@ -2664,6 +2879,7 @@ let prevTab = null;
 let prevMode = null;
 let prevLifeId = null;
 let forceScrollReset = false;
+let peopleFilter = "all";
 
 function lifeIdentity() {
   return `${state.generation || 1}|${state.firstName || ""}|${state.lastName || ""}`;
